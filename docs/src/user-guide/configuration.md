@@ -87,6 +87,17 @@ And run with:
 uv run imp train --config-name my_local_config
 ```
 
+### Project train, validation, and test periods
+
+For paper-facing experiments, keep 2013 and 2023 as holdout test years. The remaining years through 2024 form the training/validation pool:
+
+- training/validation: years before 2013, 2014-2018, 2020-2022, and 2024
+- holdout testing: 2013 and 2023
+
+Validation can be selected from the training/validation pool for a particular experiment, but the two holdout years should not be used for model fitting or hyperparameter selection.
+
+A separate leaderboard year may be configured for benchmarking, but it is intentionally not fixed here because that choice is tracked independently from the paper holdout split.
+
 ### Generating Argo float missing dates
 
 Some dates have no Argo float data. When specifying a new Argo float dataset for the first time it is necessary to generate a list of missing dates for a dataset. This can be done as follows:
