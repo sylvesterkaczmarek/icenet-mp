@@ -52,10 +52,12 @@ uv run imp evaluate --checkpoint /path/to/checkpoint.ckpt --config-name my.local
 
 ## Jupyter notebooks
 
-The `notebooks/` folder contains demonstrator notebooks. Run them with:
+The `notebooks/` folder contains a mixture of current exploratory notebooks and legacy examples. See the [notebook status guide](notebooks/README.md) before choosing one to run.
+
+Run notebooks with:
 
 ```bash
 uv run --group notebooks jupyter notebook
 ```
 
-Start with `notebooks/demo_pipeline.ipynb` for a worked example of the full pipeline.
+For the maintained end-to-end IceNet-MP workflow, use the CLI quick start and project documentation above.
