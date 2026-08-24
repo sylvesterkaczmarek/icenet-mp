@@ -1,11 +1,17 @@
+from datetime import date
 from importlib.resources import files
+from typing import cast
 
 import yaml
 
 
 def _load_split() -> dict[str, object]:
     path = files("icenet_mp.config") / "data" / "split" / "full_dataset.yaml"
-    return yaml.safe_load(path.read_text())
+    return cast("dict[str, object]", yaml.safe_load(path.read_text()))
+
+
+def _ranges(split: dict[str, object], name: str) -> list[dict[str, object]]:
+    return cast("list[dict[str, object]]", split[name])
 
 
 def _contains_year(ranges: list[dict[str, object]], year: int) -> bool:
@@ -24,9 +30,9 @@ def test_full_dataset_uses_recorded_paper_holdout_years() -> None:
     """Reserve 2013 and 2023 exclusively for final paper evaluation."""
     split = _load_split()
 
-    assert split["test"] == [
-        {"start": "2013-01-01", "end": "2013-12-31"},
-        {"start": "2023-01-01", "end": "2023-12-31"},
+    assert _ranges(split, "test") == [
+        {"start": date(2013, 1, 1), "end": date(2013, 12, 31)},
+        {"start": date(2023, 1, 1), "end": date(2023, 12, 31)},
     ]
 
 
@@ -34,34 +40,33 @@ def test_full_dataset_uses_2019_for_validation_and_2025_for_prediction() -> None
     """Keep the development comparison year separate from future prediction data."""
     split = _load_split()
 
-    assert split["validate"] == [{"start": "2019-01-01", "end": "2019-12-31"}]
-    assert split["predict"] == [{"start": "2025-01-01", "end": "2025-12-31"}]
+    assert _ranges(split, "validate") == [
+        {"start": date(2019, 1, 1), "end": date(2019, 12, 31)}
+    ]
+    assert _ranges(split, "predict") == [
+        {"start": date(2025, 1, 1), "end": date(2025, 12, 31)}
+    ]
 
 
 def test_full_dataset_training_ranges_match_recorded_partition() -> None:
     """Train on the remaining full-record periods identified in issue 184."""
     split = _load_split()
 
-    assert split["train"] == [
-        {"start": None, "end": "2012-12-31"},
-        {"start": "2014-01-01", "end": "2018-12-31"},
-        {"start": "2020-01-01", "end": "2022-12-31"},
-        {"start": "2024-01-01", "end": "2024-12-31"},
+    assert _ranges(split, "train") == [
+        {"start": None, "end": date(2012, 12, 31)},
+        {"start": date(2014, 1, 1), "end": date(2018, 12, 31)},
+        {"start": date(2020, 1, 1), "end": date(2022, 12, 31)},
+        {"start": date(2024, 1, 1), "end": date(2024, 12, 31)},
     ]
 
 
 def test_full_dataset_reserved_years_do_not_leak_between_splits() -> None:
     """Keep test, validation and future prediction years out of training."""
     split = _load_split()
-    train = split["train"]
-    test = split["test"]
-    validate = split["validate"]
-    predict = split["predict"]
-
-    assert isinstance(train, list)
-    assert isinstance(test, list)
-    assert isinstance(validate, list)
-    assert isinstance(predict, list)
+    train = _ranges(split, "train")
+    test = _ranges(split, "test")
+    validate = _ranges(split, "validate")
+    predict = _ranges(split, "predict")
 
     for year in (2013, 2019, 2023, 2025):
         assert not _contains_year(train, year)
