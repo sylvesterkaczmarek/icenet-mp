@@ -87,6 +87,26 @@ And run with:
 uv run imp train --config-name my_local_config
 ```
 
+### Comparing runs with and without Argo
+
+Paired data configs are available for isolating the effect of Argo float inputs while keeping the SIC, ERA5 and split configurations unchanged:
+
+| With Argo | Without Argo |
+|---|---|
+| `sample_north` | `sample_north_no_argo` |
+| `sample_south` | `sample_south_no_argo` |
+| `full_north` | `full_north_no_argo` |
+| `full_south` | `full_south_no_argo` |
+
+For example, run the same training configuration twice with only the data override changed:
+
+```bash
+uv run imp train --config-name my.local data=sample_south
+uv run imp train --config-name my.local data=sample_south_no_argo
+```
+
+This provides a controlled first-order Argo ablation. Other settings, including model architecture, random seed and training hyperparameters, should also be held fixed when comparing the runs.
+
 ### Generating Argo float missing dates
 
 Some dates have no Argo float data. When specifying a new Argo float dataset for the first time it is necessary to generate a list of missing dates for a dataset. This can be done as follows:
