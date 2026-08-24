@@ -11,6 +11,25 @@ IceNet-MP is an **AI/ML framework for multimodal sea-ice forecasting**.
 
 IceNet-MP fuses satellite observations, Argo float sensor data, and ERA5 reanalysis fields to produce short-term sea ice concentration forecasts. The encode-process-decode architecture translates each input dataset into a shared latent space, allowing new data sources and ML model components to be added without changing the full pipeline.
 
+```mermaid
+flowchart LR
+    OSI["OSI SAF sea-ice observations"] --> OSID["OSI SAF Anemoi dataset"]
+    ERA["ERA5 reanalysis"] --> ERAD["ERA5 Anemoi dataset"]
+    ARGO["Argo float observations"] --> ARGOD["Argo Anemoi dataset"]
+
+    OSID --> DM["CommonDataModule"]
+    ERAD --> DM
+    ARGOD --> DM
+
+    DM --> ENC["Dataset-specific encoders"]
+    ENC --> LAT["Shared latent space"]
+    LAT --> PROC["Forecast processor"]
+    PROC --> DEC["Decoder"]
+    DEC --> OUT["Sea-ice concentration forecast"]
+```
+
+Each data source is downloaded and prepared through its own Anemoi dataset configuration before being combined by the data module. See [Add a model](https://alan-turing-institute.github.io/icenet-mp/how-to/add-a-model/) for the standalone and encode-process-decode model interfaces.
+
 ## Quick start
 
 ```bash
