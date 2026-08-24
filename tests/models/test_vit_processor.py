@@ -5,21 +5,18 @@ from icenet_mp.models.processors import VitProcessor
 from icenet_mp.types import DataSpace
 
 
-def _processor(**kwargs: int | float) -> VitProcessor:
-    config: dict[str, int | float] = {
-        "depth": 2,
-        "dropout": 0.0,
-        "emb_dim": 16,
-        "heads": 4,
-        "mlp_dim": 32,
-        "patch_size": 4,
-    }
-    config.update(kwargs)
+def _processor(*, patch_size: int = 4, dropout: float = 0.0) -> VitProcessor:
+    """Build a small ViT processor for unit tests."""
     return VitProcessor(
         data_space=DataSpace(name="latent", channels=3, shape=(8, 8)),
         n_forecast_steps=2,
         n_history_steps=3,
-        **config,
+        depth=2,
+        dropout=dropout,
+        emb_dim=16,
+        heads=4,
+        mlp_dim=32,
+        patch_size=patch_size,
     )
 
 
@@ -83,7 +80,7 @@ def test_vit_rejects_patch_size_that_does_not_tile_image() -> None:
 
 def test_vit_eval_mode_is_deterministic_when_dropout_is_disabled() -> None:
     """Return stable predictions for identical inputs in evaluation mode."""
-    processor = _processor(dropout=0.0).eval()
+    processor = _processor().eval()
     inputs = torch.randn(1, 9, 8, 8)
 
     first = processor(inputs)
