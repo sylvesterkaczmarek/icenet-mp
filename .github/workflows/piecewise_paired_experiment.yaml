@@ -1,0 +1,105 @@
+name: Piecewise paired synthetic experiment
+
+on:
+  push:
+    branches:
+      - experiment/piecewise-naive-synthetic-benchmark
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout experiment branch
+        uses: actions/checkout@v7
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.8.3"
+
+      - name: Create synthetic dataset
+        run: uv run imp datasets create --config-name synthetic
+
+      - name: Train CNN piecewise baseline
+        run: |
+          uv run imp train --config-name synthetic \
+            model=piecewise_unet_piecewise \
+            loss=huber \
+            random=deterministic \
+            'model.encoders.latent_space=[16,16]' \
+            train.trainer.max_epochs=30 \
+            train.callbacks.early_stopping.patience=100 \
+            loggers.local_files.save_dir=../base/report/baseline-train
+          BASE_CKPT=$(find ../base/training/local -type f -name '*.ckpt' -print0 | xargs -0 ls -1t | head -n 1)
+          test -n "$BASE_CKPT"
+          echo "BASE_CKPT=$BASE_CKPT" >> "$GITHUB_ENV"
+
+      - name: Evaluate CNN piecewise baseline
+        run: |
+          uv run imp evaluate --config-name synthetic \
+            --checkpoint "$BASE_CKPT" \
+            loggers.local_files.save_dir=../base/report/baseline-eval
+
+      - name: Train convolution-free piecewise model
+        run: |
+          uv run imp train --config-name synthetic \
+            model=piecewise_unet_piecewise_naive \
+            loss=huber \
+            random=deterministic \
+            'model.encoders.latent_space=[16,16]' \
+            train.trainer.max_epochs=30 \
+            train.callbacks.early_stopping.patience=100 \
+            loggers.local_files.save_dir=../base/report/naive-train
+          NAIVE_CKPT=$(find ../base/training/local -type f -name '*.ckpt' -print0 | xargs -0 ls -1t | head -n 1)
+          test -n "$NAIVE_CKPT"
+          echo "NAIVE_CKPT=$NAIVE_CKPT" >> "$GITHUB_ENV"
+
+      - name: Evaluate convolution-free piecewise model
+        run: |
+          uv run imp evaluate --config-name synthetic \
+            --checkpoint "$NAIVE_CKPT" \
+            loggers.local_files.save_dir=../base/report/naive-eval
+
+      - name: Summarise paired metrics
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          def final_metrics(path: str) -> dict[str, float]:
+              records = [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
+              metrics: dict[str, float] = {}
+              for record in records:
+                  for key, value in record.items():
+                      if key != "step" and isinstance(value, (int, float)):
+                          metrics[key] = float(value)
+              return metrics
+
+          baseline = final_metrics("../base/report/baseline-eval/metrics.jsonl")
+          naive = final_metrics("../base/report/naive-eval/metrics.jsonl")
+          common = sorted(set(baseline) & set(naive))
+          comparison = {
+              "baseline": baseline,
+              "naive": naive,
+              "naive_minus_baseline": {key: naive[key] - baseline[key] for key in common},
+          }
+          Path("comparison.json").write_text(json.dumps(comparison, indent=2, sort_keys=True))
+          print(json.dumps(comparison, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload experiment results
+        uses: actions/upload-artifact@v7
+        with:
+          name: piecewise-paired-synthetic-results
+          path: |
+            comparison.json
+            ../base/report/baseline-train
+            ../base/report/baseline-eval
+            ../base/report/naive-train
+            ../base/report/naive-eval
