@@ -32,7 +32,7 @@ jobs:
             model=piecewise_unet_piecewise \
             loss=huber \
             random=deterministic \
-            'model.encoders.latent_space=[16,16]' \
+            'model.encoders.latent_space=[32,32]' \
             train.trainer.max_epochs=30 \
             train.callbacks.early_stopping.patience=100 \
             loggers.local_files.save_dir=../base/report/baseline-train
@@ -52,7 +52,7 @@ jobs:
             model=piecewise_unet_piecewise_naive \
             loss=huber \
             random=deterministic \
-            'model.encoders.latent_space=[16,16]' \
+            'model.encoders.latent_space=[32,32]' \
             train.trainer.max_epochs=30 \
             train.callbacks.early_stopping.patience=100 \
             loggers.local_files.save_dir=../base/report/naive-train
