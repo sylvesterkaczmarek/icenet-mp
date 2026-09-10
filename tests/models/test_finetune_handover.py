@@ -48,7 +48,7 @@ def handover_models(tmp_path: Path) -> Iterator[tuple[ModelService, ProcessorSta
             hemisphere="north",
             input_spaces=[space],
             output_space=space,
-            mask_dir=tmp_path,
+            mask_dir=str(tmp_path),
             n_history_steps=2,
             n_forecast_steps=2,
             name="finetune-handover",
