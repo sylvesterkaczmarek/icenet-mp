@@ -73,6 +73,7 @@ jobs:
           analytics.write_text('{"enabled": false}\n')
           source = root / 'notebooks/demo_pipeline.ipynb'
           digest = hashlib.sha256(source.read_bytes()).hexdigest()
+          assert digest == '4417c13ae26f1bb6125e91bc844915171e2761eab527384f0d9d2ee0e0026c20'
           assert not (root / 'base').exists(), 'Validation requires a fresh data/output root'
           notebook = nbformat.read(source, as_version=4)
           originals = [cell for cell in notebook.cells if cell.cell_type == 'code']
@@ -103,9 +104,8 @@ jobs:
               summary.update(executed_code_cells=sum(c.execution_count is not None for c in code_cells), errors=len(errors))
               assert not errors, errors
               assert summary['executed_code_cells'] == 24
-              # Persistence's relative checkpoint path can be nested within its run.
-              # Match artifacts from actual top-level run/config directories rather
-              # than assuming that every checkpoint is one directory below its config.
+              # Evaluation writes its own config-only directory. Training must have
+              # both a config and a checkpoint, which may be nested for persistence.
               runs_root = root / 'base/training/local'
               configs = sorted(runs_root.glob('*/files/model_config.yaml'))
               assert len(configs) >= 2, 'Both learned and persistence run configs are required'
@@ -113,7 +113,6 @@ jobs:
               for config_path in configs:
                   run_dir = config_path.parent.parent
                   checkpoints = sorted(run_dir.glob('**/checkpoints/*.ckpt'))
-                  assert checkpoints, f'No checkpoint for {run_dir}'
                   assert all(p.stat().st_size > 0 for p in checkpoints)
                   config = yaml.safe_load(config_path.read_text())
                   artifacts.append({'run': str(run_dir.relative_to(root)),
@@ -121,19 +120,21 @@ jobs:
                                     'model_name': config['model']['name'],
                                     'checkpoints': [str(p.relative_to(root)) for p in checkpoints]})
                   shutil.copyfile(config_path, destination / (run_dir.name + '-model_config.yaml'))
-              targets = {a['model_target'] for a in artifacts}
+              training = [a for a in artifacts if a['checkpoints']]
+              assert len(training) >= 2, 'Both learned and persistence checkpoint runs are required'
+              targets = {a['model_target'] for a in training}
               assert any('Persistence' in target for target in targets), targets
               assert any('EncodeProcessDecode' in target for target in targets), targets
               metrics_path = root / 'base/report/metrics.jsonl'
               assert metrics_path.is_file(), 'Evaluation metrics file is missing'
               rows = [json.loads(line) for line in metrics_path.read_text().splitlines() if line.strip()]
               test_losses = [row['test_loss'] for row in rows if 'test_loss' in row]
-              assert test_losses and all(math.isfinite(value) for value in test_losses), test_losses
+              assert len(test_losses) >= 2 and all(math.isfinite(value) for value in test_losses), test_losses
               shutil.copyfile(metrics_path, destination / 'metrics.jsonl')
               assert hashlib.sha256(source.read_bytes()).hexdigest() == digest
               subprocess.run(['git', 'diff', '--exit-code'], check=True)
-              summary.update(success=True, training_runs=artifacts, recorded_test_losses=test_losses,
-                             original_notebook_unchanged=True)
+              summary.update(success=True, training_runs=training, all_run_configs=artifacts,
+                             recorded_test_losses=test_losses, original_notebook_unchanged=True)
           finally:
               nbformat.write(notebook, destination / 'demo_pipeline.executed.ipynb')
               (destination / 'summary.json').write_text(json.dumps(summary, indent=2))
