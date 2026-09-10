@@ -1,0 +1,147 @@
+name: Validate target encoder handover
+
+on:
+  push:
+    branches:
+      - validation/539-target-encoder-20260910-5f92
+
+permissions:
+  contents: write
+
+jobs:
+  regression:
+    if: github.repository == 'sylvesterkaczmarek/icenet-mp'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      MPLBACKEND: Agg
+      PYTORCH_ENABLE_MPS_FALLBACK: '1'
+      BASE_SHA: 57227ac534d2950560ecc731a817e4d5e0241681
+      FIX_BRANCH: fix/539-preserve-target-encoder
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@v7
+      - name: Install locked dependencies
+        run: |
+          set -euo pipefail
+          uv sync --frozen --group dev --group docs
+          mkdir -p "$RUNNER_TEMP/target-encoder-evidence"
+          uv pip freeze --python .venv/bin/python > "$RUNNER_TEMP/target-encoder-evidence/environment.txt"
+      - name: Reproduce handover failures on unchanged production code
+        run: |
+          set -euo pipefail
+          git diff --exit-code "$BASE_SHA" -- icenet_mp
+          set +e
+          uv run --frozen --group dev pytest -o addopts='' -q tests/models/test_finetune_handover.py --junitxml="$RUNNER_TEMP/target-encoder-evidence/before.xml" > "$RUNNER_TEMP/target-encoder-evidence/before.log" 2>&1
+          status=$?
+          set -e
+          cat "$RUNNER_TEMP/target-encoder-evidence/before.log"
+          test "$status" -eq 1
+          .venv/bin/python - <<'PY'
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          cases = ET.parse(Path(os.environ['RUNNER_TEMP']) / 'target-encoder-evidence/before.xml').findall('.//testcase')
+          assert len(cases) == 4, len(cases)
+          assert all(c.find('failure') is not None for c in cases)
+          assert not any(c.find('error') is not None or c.find('skipped') is not None for c in cases)
+          print('BASELINE_CONFIRMED: state transfer and all three objective-continuity cases fail')
+          PY
+      - name: Apply target state transfer and update existing fixture
+        run: |
+          .venv/bin/python - <<'PY'
+          from pathlib import Path
+          path = Path('icenet_mp/model_service.py')
+          source = path.read_text()
+          anchor = '        model.processor.load_state_dict(processor_model.processor.state_dict())\n'
+          assert source.count(anchor) == 1
+          source = source.replace(anchor,
+              '        model.target_encoder.load_state_dict(\n'
+              '            processor_model.target_encoder.state_dict()\n'
+              '        )\n'
+              '        log.info("Loaded pretrained weights for target encoder.")\n' + anchor)
+          path.write_text(source)
+          path = Path('tests/test_model_service.py')
+          source = path.read_text()
+          start = source.index('    def test_train_stage_finetune_loads_pretrained_weights_and_fits(')
+          end = source.index('\n    def ', start + 5)
+          block = source[start:end]
+          replacements = [
+              ('        service.model_.decoder = MagicMock()',
+               '        service.model_.decoder = MagicMock()\n'
+               '        service.model_.target_encoder = MagicMock()'),
+              ('        processor_model.decoder.state_dict.return_value = "decoder_state"',
+               '        processor_model.decoder.state_dict.return_value = "decoder_state"\n'
+               '        processor_model.target_encoder.state_dict.return_value = "target_encoder_state"'),
+              ('        mock_fit.assert_called_once_with(',
+               '        service.model_.target_encoder.load_state_dict.assert_called_once_with(\n'
+               '            "target_encoder_state"\n'
+               '        )\n'
+               '        mock_fit.assert_called_once_with('),
+          ]
+          for old, new in replacements:
+              assert block.count(old) == 1, old
+              block = block.replace(old, new, 1)
+          path.write_text(source[:start] + block + source[end:])
+          PY
+      - name: Check style and types
+        run: |
+          set -euo pipefail
+          uv run --frozen --group dev pre-commit run --all-files > "$RUNNER_TEMP/target-encoder-evidence/style.log" 2>&1 || uv run --frozen --group dev pre-commit run --all-files >> "$RUNNER_TEMP/target-encoder-evidence/style.log" 2>&1
+          cat "$RUNNER_TEMP/target-encoder-evidence/style.log"
+          uv run --frozen --group dev mypy . | tee "$RUNNER_TEMP/target-encoder-evidence/mypy.log"
+      - name: Verify regressions and full suite
+        run: |
+          set -euo pipefail
+          uv run --frozen --group dev pytest -o addopts='' -q tests/models/test_finetune_handover.py --junitxml="$RUNNER_TEMP/target-encoder-evidence/after.xml" | tee "$RUNNER_TEMP/target-encoder-evidence/after.log"
+          uv run --frozen --group dev pytest -o addopts='' -q --junitxml="$RUNNER_TEMP/target-encoder-evidence/full.xml" | tee "$RUNNER_TEMP/target-encoder-evidence/full.log"
+          git diff --check
+      - name: Save tested code on a separate branch without creating a PR
+        run: |
+          set -euo pipefail
+          destination="$RUNNER_TEMP/target-encoder-final"
+          git worktree add --detach "$destination" "$BASE_SHA"
+          for file in icenet_mp/model_service.py tests/test_model_service.py tests/models/test_finetune_handover.py; do
+            cp "$file" "$destination/$file"
+            git -C "$destination" add "$file"
+          done
+          expected=$'icenet_mp/model_service.py\ntests/models/test_finetune_handover.py\ntests/test_model_service.py'
+          test "$(git -C "$destination" diff --cached --name-only)" = "$expected"
+          git -C "$destination" diff --cached --check
+          git -C "$destination" diff --cached > "$RUNNER_TEMP/target-encoder-evidence/fix.patch"
+          git -C "$destination" -c user.name='Sylvester Kaczmarek' -c user.email='16242628+sylvesterkaczmarek@users.noreply.github.com' commit -m 'Preserve pretrained target encoder during fine-tuning handover'
+          if test -n "$(git ls-remote --heads origin "refs/heads/$FIX_BRANCH")"; then
+            echo 'Refusing to overwrite an existing fix branch'
+            exit 1
+          fi
+          git -C "$destination" push origin "HEAD:refs/heads/$FIX_BRANCH"
+          git -C "$destination" rev-parse HEAD | tee "$RUNNER_TEMP/target-encoder-evidence/fix-commit.txt"
+          .venv/bin/python - <<'PY'
+          import json
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP']) / 'target-encoder-evidence'
+          def counts(name):
+              cases = ET.parse(root / name).findall('.//testcase')
+              return {'tests': len(cases), 'failures': sum(c.find('failure') is not None for c in cases), 'errors': sum(c.find('error') is not None for c in cases), 'skipped': sum(c.find('skipped') is not None for c in cases)}
+          summary = {'base_sha': os.environ['BASE_SHA'], 'fix_sha': (root / 'fix-commit.txt').read_text().strip(), 'branch': os.environ['FIX_BRANCH'], 'before': counts('before.xml'), 'after': counts('after.xml'), 'full': counts('full.xml'), 'pr_created': False}
+          (root / 'summary.json').write_text(json.dumps(summary, indent=2))
+          print(json.dumps(summary, indent=2))
+          PY
+      - name: Preserve validation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: target-encoder-539-validation
+          path: ${{ runner.temp }}/target-encoder-evidence/
+          retention-days: 14
+          if-no-files-found: warn
