@@ -1,0 +1,123 @@
+name: Validate PR 510 notebook
+
+on:
+  push:
+    branches:
+      - validation/pr510-notebook-20260910-473c
+
+permissions:
+  contents: read
+
+jobs:
+  notebook:
+    if: github.repository == 'sylvesterkaczmarek/icenet-mp'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: 087dc93d88af8104241e7b977392451e42ad50cb
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@v7
+      - name: Install locked project and notebook execution tools
+        run: |
+          set -euo pipefail
+          uv sync --frozen --no-default-groups
+          uv pip install --python .venv/bin/python nbclient nbformat ipykernel
+          mkdir -p "$RUNNER_TEMP/pr510-validation"
+          .venv/bin/python -m pip freeze > "$RUNNER_TEMP/pr510-validation/environment.txt" || uv pip freeze --python .venv/bin/python > "$RUNNER_TEMP/pr510-validation/environment.txt"
+      - name: Execute all original notebook cells with checked shell exits
+        run: |
+          set -euo pipefail
+          export PATH="$GITHUB_WORKSPACE/.venv/bin:$PATH"
+          .venv/bin/python -u - <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          import nbformat
+          from nbclient import NotebookClient
+          from jupyter_client.kernelspec import KernelSpecManager
+
+          expected = '087dc93d88af8104241e7b977392451e42ad50cb'
+          root = Path.cwd()
+          actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          assert actual == expected, (actual, expected)
+          destination = Path(os.environ['RUNNER_TEMP']) / 'pr510-validation'
+          destination.mkdir(exist_ok=True)
+          home = destination / 'empty-home'
+          home.mkdir()
+          os.environ['HOME'] = str(home)
+          os.environ['XDG_CONFIG_HOME'] = str(home / '.config')
+          os.environ['XDG_CACHE_HOME'] = str(home / '.cache')
+          for name in list(os.environ):
+              if name.startswith(('WANDB_', 'CDSAPI_', 'ECMWF_API_', 'COPERNICUSMARINE_')):
+                  os.environ.pop(name)
+          analytics = home / '.config/anemoi/analytics.json'
+          analytics.parent.mkdir(parents=True)
+          analytics.write_text('{"enabled": false}\n')
+          source = root / 'notebooks/demo_pipeline.ipynb'
+          digest = hashlib.sha256(source.read_bytes()).hexdigest()
+          assert not (root / 'base').exists(), 'Validation requires a fresh data/output root'
+          notebook = nbformat.read(source, as_version=4)
+          originals = [cell for cell in notebook.cells if cell.cell_type == 'code']
+          assert len(originals) == 24, len(originals)
+          # The repository notebook is not edited. Append a check to in-memory shell
+          # cells so IPython cannot hide an unsuccessful CLI process from the runner.
+          for cell in originals:
+              if any(line.lstrip().startswith('!') for line in cell.source.splitlines()):
+                  cell.source += '\nassert get_ipython().user_ns.get("_exit_code", 0) == 0, "CLI command failed"\n'
+          spec_dir = destination / 'kernel-source'
+          spec_dir.mkdir()
+          (spec_dir / 'kernel.json').write_text(json.dumps({
+              'argv': [sys.executable, '-m', 'ipykernel_launcher', '-f', '{connection_file}'],
+              'display_name': 'PR 510 validation', 'language': 'python'
+          }))
+          KernelSpecManager().install_kernel_spec(str(spec_dir), kernel_name='pr510-validation', user=True)
+          client = NotebookClient(notebook, timeout=300, kernel_name='pr510-validation',
+                                  resources={'metadata': {'path': str(root / 'notebooks')}})
+          client.on_cell_start = lambda cell, cell_index, **kwargs: print('CELL', cell_index, cell.cell_type, flush=True)
+          summary = {'head_sha': actual, 'notebook_sha256': digest, 'original_code_cells': len(originals),
+                     'fresh_home': True, 'fresh_data_root': True, 'shell_exit_checks': True, 'success': False}
+          try:
+              client.execute()
+              code_cells = [c for c in notebook.cells if c.cell_type == 'code']
+              errors = [o for c in code_cells for o in c.get('outputs', []) if o.output_type == 'error']
+              assert not errors, errors
+              assert all(c.execution_count is not None for c in code_cells)
+              checkpoints = sorted((root / 'base/training/local').glob('**/checkpoints/*.ckpt'))
+              runs = {p.parent.parent for p in checkpoints}
+              assert len(runs) >= 2, 'Both learned and persistence checkpoints are required'
+              assert all((p / 'files/model_config.yaml').is_file() for p in runs)
+              assert source.read_bytes() and hashlib.sha256(source.read_bytes()).hexdigest() == digest
+              subprocess.run(['git', 'diff', '--exit-code'], check=True)
+              summary.update(success=True, executed_code_cells=len(code_cells), errors=0,
+                             checkpoint_runs=len(runs))
+          finally:
+              nbformat.write(notebook, destination / 'demo_pipeline.executed.ipynb')
+              (destination / 'summary.json').write_text(json.dumps(summary, indent=2))
+              print(json.dumps(summary, indent=2), flush=True)
+          PY
+      - name: Preserve validation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr510-notebook-087dc93d
+          path: |
+            ${{ runner.temp }}/pr510-validation/summary.json
+            ${{ runner.temp }}/pr510-validation/environment.txt
+            ${{ runner.temp }}/pr510-validation/demo_pipeline.executed.ipynb
+          retention-days: 14
+          if-no-files-found: warn
