@@ -1,0 +1,124 @@
+name: Validate metric state isolation
+
+on:
+  push:
+    branches:
+      - validation/537-metric-state-20260910
+
+permissions:
+  contents: write
+
+jobs:
+  regression:
+    if: github.repository == 'sylvesterkaczmarek/icenet-mp'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      MPLBACKEND: Agg
+      BASE_SHA: 57227ac534d2950560ecc731a817e4d5e0241681
+      FIX_BRANCH: fix/537-metric-state-isolation
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@v7
+      - name: Install locked dependencies
+        run: |
+          set -euo pipefail
+          uv sync --frozen --group dev --group docs
+          mkdir -p "$RUNNER_TEMP/metric-state-evidence"
+          uv pip freeze --python .venv/bin/python > "$RUNNER_TEMP/metric-state-evidence/environment.txt"
+      - name: Reproduce both defects on unchanged production code
+        run: |
+          set -euo pipefail
+          git diff --exit-code "$BASE_SHA" -- icenet_mp
+          set +e
+          uv run --frozen --group dev pytest -o addopts='' -q tests/models/test_metric_batch_invariance.py --junitxml="$RUNNER_TEMP/metric-state-evidence/before.xml" > "$RUNNER_TEMP/metric-state-evidence/before.log" 2>&1
+          status=$?
+          set -e
+          cat "$RUNNER_TEMP/metric-state-evidence/before.log"
+          test "$status" -eq 1
+          .venv/bin/python - <<'PY'
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          cases = ET.parse(Path(os.environ['RUNNER_TEMP']) / 'metric-state-evidence/before.xml').findall('.//testcase')
+          failures = [c for c in cases if c.find('failure') is not None]
+          assert len(cases) == 12, len(cases)
+          assert len(failures) == 6, len(failures)
+          assert all('[1-' in c.attrib['name'] for c in failures)
+          assert not any(c.find('error') is not None or c.find('skipped') is not None for c in cases)
+          print('BASELINE_CONFIRMED: six split-batch failures and six combined-batch passes')
+          PY
+      - name: Apply minimal state-isolation correction
+        run: |
+          .venv/bin/python - <<'PY'
+          from pathlib import Path
+          path = Path('icenet_mp/models/base_model.py')
+          source = path.read_text()
+          old = '{name: _metric_classes[name]() for name in metrics}\n        )'
+          assert source.count(old) == 3, 'Expected all three unmodified metric collections'
+          source = source.replace(old, '{name: _metric_classes[name]() for name in metrics},\n            compute_groups=False,\n        )')
+          anchor = '        self.test_metrics = MetricCollection(\n'
+          assert source.count(anchor) == 1
+          source = source.replace(anchor, '        # Equal initial states do not imply equal update rules for our metrics.\n        # Keep accumulators independent across batches.\n' + anchor)
+          path.write_text(source)
+          PY
+      - name: Check style and types
+        run: |
+          set -euo pipefail
+          uv run --frozen --group dev pre-commit run --all-files > "$RUNNER_TEMP/metric-state-evidence/style.log" 2>&1 || uv run --frozen --group dev pre-commit run --all-files >> "$RUNNER_TEMP/metric-state-evidence/style.log" 2>&1
+          cat "$RUNNER_TEMP/metric-state-evidence/style.log"
+          uv run --frozen --group dev mypy . | tee "$RUNNER_TEMP/metric-state-evidence/mypy.log"
+      - name: Verify regression cases and full test suite
+        run: |
+          set -euo pipefail
+          uv run --frozen --group dev pytest -o addopts='' -q tests/models/test_metric_batch_invariance.py --junitxml="$RUNNER_TEMP/metric-state-evidence/after.xml" | tee "$RUNNER_TEMP/metric-state-evidence/after.log"
+          uv run --frozen --group dev pytest -o addopts='' -q --junitxml="$RUNNER_TEMP/metric-state-evidence/full.xml" | tee "$RUNNER_TEMP/metric-state-evidence/full.log"
+          git diff --check
+      - name: Publish only the tested fix and regression tests
+        run: |
+          set -euo pipefail
+          destination="$RUNNER_TEMP/metric-state-final"
+          git worktree add --detach "$destination" "$BASE_SHA"
+          cp icenet_mp/models/base_model.py "$destination/icenet_mp/models/base_model.py"
+          cp tests/models/test_metric_batch_invariance.py "$destination/tests/models/test_metric_batch_invariance.py"
+          git -C "$destination" add icenet_mp/models/base_model.py tests/models/test_metric_batch_invariance.py
+          expected=$'icenet_mp/models/base_model.py\ntests/models/test_metric_batch_invariance.py'
+          test "$(git -C "$destination" diff --cached --name-only)" = "$expected"
+          git -C "$destination" diff --cached --check
+          git -C "$destination" diff --cached > "$RUNNER_TEMP/metric-state-evidence/fix.patch"
+          git -C "$destination" -c user.name='Sylvester Kaczmarek' -c user.email='16242628+sylvesterkaczmarek@users.noreply.github.com' commit -m 'Keep metric accumulators independent across batches'
+          if test -n "$(git ls-remote --heads origin "refs/heads/$FIX_BRANCH")"; then
+            echo 'Refusing to overwrite an existing fix branch'
+            exit 1
+          fi
+          git -C "$destination" push origin "HEAD:refs/heads/$FIX_BRANCH"
+          git -C "$destination" rev-parse HEAD | tee "$RUNNER_TEMP/metric-state-evidence/fix-commit.txt"
+          .venv/bin/python - <<'PY'
+          import json
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP']) / 'metric-state-evidence'
+          def counts(name):
+              cases = ET.parse(root / name).findall('.//testcase')
+              return {'tests': len(cases), 'failures': sum(c.find('failure') is not None for c in cases), 'errors': sum(c.find('error') is not None for c in cases), 'skipped': sum(c.find('skipped') is not None for c in cases)}
+          summary = {'base_sha': os.environ['BASE_SHA'], 'fix_sha': (root / 'fix-commit.txt').read_text().strip(), 'branch': os.environ['FIX_BRANCH'], 'before': counts('before.xml'), 'after': counts('after.xml'), 'full': counts('full.xml')}
+          (root / 'summary.json').write_text(json.dumps(summary, indent=2))
+          print(json.dumps(summary, indent=2))
+          PY
+      - name: Preserve validation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: metric-state-537-validation
+          path: ${{ runner.temp }}/metric-state-evidence/
+          retention-days: 14
+          if-no-files-found: warn
