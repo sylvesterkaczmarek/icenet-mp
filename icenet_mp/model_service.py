@@ -104,15 +104,15 @@ class ModelService:
             raise FileNotFoundError(msg)
 
         # Build a combined model configuration where the command line config takes
-        # precedence except for the "model", "predict" and "train" keys which are
-        # related to training the model.
+        # precedence except for the "predict" and "train" keys which are related to
+        # training the model.
         config_path = checkpoint_path.parent.parent / "files" / "model_config.yaml"
         try:
             # Load the model configuration from the checkpoint directory
             ckpt_config = DictConfig(OmegaConf.load(config_path))
             log.debug("Loaded checkpoint configuration from %s.", config_path)
             combined_cfg = DictConfig(OmegaConf.merge(ckpt_config, config))
-            for key in ("model", "predict", "train"):
+            for key in ("predict", "train"):
                 combined_cfg[key] = OmegaConf.merge(
                     combined_cfg.get(key, {}), ckpt_config.get(key, {})
                 )
@@ -126,14 +126,16 @@ class ModelService:
             builder.config["model"]["_target_"]
         )
         log.info("Loading a trained %s model...", builder.config["model"]["name"])
-        builder.model_ = model_cls.load_from_checkpoint(
-            checkpoint_path,
+        model_kwargs = dict(builder.config["model"])
+        model_kwargs.pop("_target_", None)
+        model_kwargs.update(
             mask_dir=str(builder.data_module.mask_directory),
             latitudes_fn=lambda: builder.data_module.latitudes,
             longitudes_fn=lambda: builder.data_module.longitudes,
             map_location="cpu",  # portability: will be moved to the correct device later
             weights_only=False,
         )
+        builder.model_ = model_cls.load_from_checkpoint(checkpoint_path, **model_kwargs)
 
         return builder
 
