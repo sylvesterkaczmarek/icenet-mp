@@ -91,12 +91,25 @@ jobs:
               assert block.count(old) == 1, old
               block = block.replace(old, new, 1)
           path.write_text(source[:start] + block + source[end:])
+          path = Path('tests/models/test_finetune_handover.py')
+          source = path.read_text()
+          old = '    assert trainable and all(trainable)\n'
+          assert source.count(old) == 1
+          path.write_text(source.replace(old, '    assert trainable\n    assert all(trainable)\n'))
           PY
       - name: Check style and types
         run: |
           set -euo pipefail
-          uv run --frozen --group dev pre-commit run --all-files > "$RUNNER_TEMP/target-encoder-evidence/style.log" 2>&1 || uv run --frozen --group dev pre-commit run --all-files >> "$RUNNER_TEMP/target-encoder-evidence/style.log" 2>&1
+          set +e
+          uv run --frozen --group dev pre-commit run --all-files > "$RUNNER_TEMP/target-encoder-evidence/style.log" 2>&1
+          status=$?
+          if test "$status" -ne 0; then
+            uv run --frozen --group dev pre-commit run --all-files >> "$RUNNER_TEMP/target-encoder-evidence/style.log" 2>&1
+            status=$?
+          fi
+          set -e
           cat "$RUNNER_TEMP/target-encoder-evidence/style.log"
+          test "$status" -eq 0
           uv run --frozen --group dev mypy . | tee "$RUNNER_TEMP/target-encoder-evidence/mypy.log"
       - name: Verify regressions and full suite
         run: |
