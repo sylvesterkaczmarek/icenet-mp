@@ -1,0 +1,5 @@
+defaults:
+  - datasets:
+    - samp_sicnorth_carra2_2p5km_2020_2024_24h_v1
+  - split: sample_dataset
+  - _self_

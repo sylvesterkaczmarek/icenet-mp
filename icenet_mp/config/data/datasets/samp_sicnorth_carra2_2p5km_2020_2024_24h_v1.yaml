@@ -1,0 +1,28 @@
+samp-sicnorth-carra2-2p5km-2020-2024-24h-v1:
+  name: samp-sicnorth-carra2-2p5km-2020-2024-24h-v1
+  group_as: sic-carra2
+  description: CARRA2 sea ice area fraction for the Svalbard downscaling ROI
+  attribution: ECMWF/C3S
+  licence: CC-BY-4.0
+
+  dates:
+    start: '2020-01-01T12:00:00'
+    end: '2024-12-31T12:00:00'
+    frequency: 24h
+
+  # Keep normalisation statistics within the sample training split.
+  statistics:
+    end: '2021-12-31T12:00:00'
+
+  input:
+    cds:
+      dataset: reanalysis-pan-carra
+      request:
+        level_type: single_levels
+        variable:
+          - sea_ice_area_fraction
+        product_type: analysis
+        data_format: grib
+        download_format: unarchived
+        # Svalbard ROI in CDS [north, west, south, east] convention.
+        area: [81, 15, 76, 35]

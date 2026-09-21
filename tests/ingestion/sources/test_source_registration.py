@@ -15,6 +15,7 @@ from anemoi.datasets.create.sources import source_registry
 
 from icenet_mp.ingestion.sources import (
     ArgoSource,
+    CDSSource,
     FTPSource,
     SyntheticSource,
     register_sources,
@@ -27,6 +28,7 @@ class TestSourceRegistration:
     EXPECTED_SOURCES: ClassVar[dict] = {
         "ftp": FTPSource,
         "argo": ArgoSource,
+        "cds": CDSSource,
         "synthetic": SyntheticSource,
     }
 
@@ -78,6 +80,31 @@ class TestSourceRegistration:
             },
         )
         assert type(recipe.input).__name__ == "synthetic"
+
+    def test_recipe_accepts_registered_cds_source(self) -> None:
+        """The rebuilt recipe model accepts a nested generic CDS request."""
+        register_sources()
+        recipe = Recipe(
+            dates=StartEndDates(
+                start=datetime.datetime(2020, 1, 1, 12, 0, 0),
+                end=datetime.datetime(2020, 1, 2, 12, 0, 0),
+                frequency=datetime.timedelta(hours=24),
+            ),
+            input={
+                "cds": {
+                    "dataset": "reanalysis-pan-carra",
+                    "request": {
+                        "level_type": "single_levels",
+                        "variable": ["sea_ice_area_fraction"],
+                        "product_type": "analysis",
+                        "data_format": "grib",
+                        "download_format": "unarchived",
+                        "area": [81, 15, 76, 35],
+                    },
+                }
+            },
+        )
+        assert type(recipe.input).__name__ == "cds"
 
     def test_register_sources_is_idempotent(self) -> None:
         """Calling register_sources() twice does not raise or corrupt the registry."""

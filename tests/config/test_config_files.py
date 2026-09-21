@@ -42,3 +42,21 @@ class TestConfigFiles:
         # combinator), so only its presence as a non-empty mapping is source-agnostic.
         assert isinstance(body.get("input"), dict), "missing 'input' recipe"
         assert body["input"], "empty 'input' recipe"
+
+    def test_carra2_svalbard_roi_recipe(self) -> None:
+        """Keep the initial downscaling ROI and CARRA2 target request explicit."""
+        config_file = (
+            DATASETS_DIR / "samp_sicnorth_carra2_2p5km_2020_2024_24h_v1.yaml"
+        )
+        with config_file.open() as f:
+            data = yaml.safe_load(f)
+
+        body = next(iter(data.values()))
+        source = body["input"]["cds"]
+        request = source["request"]
+
+        assert source["dataset"] == "reanalysis-pan-carra"
+        assert request["area"] == [81, 15, 76, 35]
+        assert request["variable"] == ["sea_ice_area_fraction"]
+        assert request["product_type"] == "analysis"
+        assert body["statistics"]["end"] == "2021-12-31T12:00:00"

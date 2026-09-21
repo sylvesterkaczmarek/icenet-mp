@@ -20,6 +20,16 @@ To create the synthetic dataset, use:
 uv run imp datasets create --config-name synthetic
 ```
 
+To create the CARRA2 high-resolution target for the initial Svalbard downscaling
+region (81°N–76°N, 15°E–35°E), use:
+
+```bash
+uv run imp datasets create data=downscale_svalbard
+```
+
+This downloads CARRA2 sea-ice area fraction at its native 2.5 km resolution for
+2020–2024. CDS API credentials are required.
+
 ## `datasets inspect`
 
 ```bash
