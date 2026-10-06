@@ -1,0 +1,78 @@
+{
+  "dataset": "samp-sicnorth-osisaf-25p0km-2020-2024-24h-v1",
+  "attribution": "EUMETSAT/OSI SAF",
+  "license": "CC-BY-4.0",
+  "source_template": "ftp://osisaf.met.no/reprocessed/ice/conc-cont-reproc-amsr/v3p0/2024/01/ice_conc_nh_ease2-250_icdr-v3p0-amsr_{YYYYMMDD}1200.nc",
+  "source_processing": "The existing repository-ingested public dataset rescales ice_conc by 0.01 and provides status flags used to derive fixed active/ocean masks from training dates only. No new external data request was made.",
+  "dates": [
+    "2024-01-01T12:00:00",
+    "2024-01-02T12:00:00",
+    "2024-01-03T12:00:00",
+    "2024-01-04T12:00:00",
+    "2024-01-05T12:00:00",
+    "2024-01-06T12:00:00",
+    "2024-01-07T12:00:00",
+    "2024-01-08T12:00:00",
+    "2024-01-09T12:00:00",
+    "2024-01-10T12:00:00"
+  ],
+  "crop_rows": [
+    232,
+    296
+  ],
+  "crop_cols": [
+    206,
+    270
+  ],
+  "shape": [
+    10,
+    64,
+    64
+  ],
+  "mask_pixels": 3649,
+  "training_observation_mean": 0.4273107349872589,
+  "training_observation_std": 0.4577072262763977,
+  "normalization_dates": "2024-01-01 through 2024-01-06 only",
+  "train_target_dates": [
+    "2024-01-02",
+    "2024-01-03",
+    "2024-01-04",
+    "2024-01-05",
+    "2024-01-06"
+  ],
+  "validation_target_dates": [
+    "2024-01-07"
+  ],
+  "test_target_dates": [
+    "2024-01-08",
+    "2024-01-09",
+    "2024-01-10"
+  ],
+  "lead_days": 1,
+  "input_sha256": "34c5417d5ef1a6283de23accda8a344751bb75c91b402c1074c92dd07b38a0bf",
+  "region_selection": "64x64 original-grid patch centred on the grid point nearest 78N,25E, selected before running either model",
+  "seeds": [
+    477,
+    478
+  ],
+  "scales": [
+    1.0,
+    2.0
+  ],
+  "training_steps": 120,
+  "optimizer": {
+    "name": "AdamW",
+    "lr": 0.001,
+    "weight_decay": 0.0001
+  },
+  "checkpoint_rule": "Fixed final checkpoint, no selection on test or validation scores",
+  "encoder_decoder": "Fixed affine encoding/decoding using training-only mean and standard deviation, not a pretrained production encoder",
+  "sampling": {
+    "timesteps": 32,
+    "ddim_steps": 32,
+    "eta": 0.0,
+    "ensemble_members": 4
+  },
+  "loss": "MSE of v-prediction over the same fixed active ocean mask",
+  "spatial_scope": "One 1600 km square crop, not a pan-Arctic operational evaluation"
+}
