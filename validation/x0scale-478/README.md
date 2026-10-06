@@ -60,3 +60,7 @@ Use a complete clone containing the baseline commit. `run_comparison.py` writes 
 ## Limits
 
 Ten winter observation dates, five training targets, three correlated test dates, one spatial crop, two seeds and a short training budget do not establish a reliable effect size or generalisation across seasons, regions or operational checkpoints. The existing default matches the old code; changing the experimental scaling knob is not justified as a forecast-skill improvement by this pilot. A multi-year benchmark with the intended learned encoder would be needed for that claim.
+
+## Repeat-run check
+
+A second run using the published source branch and its checked-in input slice reproduced all four training runs exactly in the same software/hardware environment: initial and final parameter hashes, all training losses, per-date predictions metrics and both baselines match. The result is recorded in `reproduction_check.json`. This validates reproducibility within that environment; it does not expand the small scientific evaluation sample or establish cross-hardware bitwise equivalence.

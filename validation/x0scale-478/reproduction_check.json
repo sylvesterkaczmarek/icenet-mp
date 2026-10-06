@@ -1,0 +1,8 @@
+{
+  "source": "Published evidence branch and checked-in input file",
+  "same_initial_and_final_parameter_hashes": true,
+  "same_training_losses": true,
+  "same_metrics_and_daily_results": true,
+  "runs": 4,
+  "seconds": 51.59900495799957
+}
