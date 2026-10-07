@@ -1,0 +1,39 @@
+{
+  "means_percentage_points": {
+    "strict": {
+      "complete_test": {
+        "mae": 13.059478998184204,
+        "rmse": 16.13796576857567
+      },
+      "missing_test_fill": {
+        "mae": 21.032749861478806,
+        "rmse": 27.232395112514496
+      }
+    },
+    "fill": {
+      "complete_test": {
+        "mae": 12.082218751311302,
+        "rmse": 15.42675495147705
+      },
+      "missing_test_fill": {
+        "mae": 11.903183907270432,
+        "rmse": 15.086986124515533
+      }
+    }
+  },
+  "persistence_percentage_points": {
+    "mae": 4.9099888652563095,
+    "rmse": 9.363829344511032
+  },
+  "same_results_after_self_contained_rebuild": true,
+  "same_initial_and_final_parameter_hashes": true,
+  "timing_is_not_stable_across_runs": true,
+  "training_windows": {
+    "strict": 3,
+    "fill": 5
+  },
+  "missing_test_windows": {
+    "strict": 2,
+    "fill": 3
+  }
+}

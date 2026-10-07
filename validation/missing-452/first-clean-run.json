@@ -1,0 +1,311 @@
+{
+  "design": {
+    "target_source": "EUMETSAT/OSI SAF sea-ice concentration, public source cache",
+    "conditioning_source": "C3S CARRA2 sea-ice concentration reanalysis, public source cache",
+    "source_files": [
+      "samp-sicnorth-osisaf-25p0km-2020-2024-24h-v1.zarr",
+      "samp-sicnorth-carra2-2p5km-2020-2024-24h-v1.zarr"
+    ],
+    "dates": [
+      "2024-01-01T12:00:00",
+      "2024-01-02T12:00:00",
+      "2024-01-03T12:00:00",
+      "2024-01-04T12:00:00",
+      "2024-01-05T12:00:00",
+      "2024-01-06T12:00:00",
+      "2024-01-07T12:00:00",
+      "2024-01-08T12:00:00",
+      "2024-01-09T12:00:00",
+      "2024-01-10T12:00:00"
+    ],
+    "crop_rows": [
+      252,
+      276
+    ],
+    "crop_columns": [
+      226,
+      250
+    ],
+    "native_target_spacing_km": 25,
+    "conditioning_alignment": "Nearest CARRA2 grid point on the unit sphere to each OSI SAF crop point. Fixed geometry; ocean pixels farther than 10 km from CARRA2 excluded.",
+    "max_included_distance_km": 1.6465955843601836,
+    "mask": "Ocean/active flags and finite values in both training sources on Jan 1-6 only, intersected with fixed geographic coverage.",
+    "mask_pixels": 303,
+    "shape": [
+      10,
+      24,
+      24
+    ],
+    "normalization": "Physical concentration fractions already in [0,1], no data-fitted normalization. Outside-mask values zero in both sources.",
+    "n_history_steps": 1,
+    "n_forecast_steps": 1,
+    "training_targets": "2024-01-02 through 2024-01-06",
+    "validation_target": "2024-01-07 (not used for checkpoint selection)",
+    "test_targets": [
+      "2024-01-08",
+      "2024-01-09",
+      "2024-01-10"
+    ],
+    "withheld_training_conditioning_dates": [
+      "2024-01-02",
+      "2024-01-04"
+    ],
+    "withheld_test_conditioning_dates": [
+      "2024-01-08"
+    ],
+    "optimizer_steps": 200,
+    "seeds": [
+      123,
+      456
+    ],
+    "checkpoint": "Fixed final step with identical initial state per seed; no selection against held-out metrics.",
+    "model": "Actual EncodeProcessDecode with NaiveLinearEncoder, UNetProcessor(start_out_channels=8), NaiveLinearDecoder, 32x32 latent grid, sigmoid range.",
+    "optimizer": "Adam, learning rate 0.001, batch size 2",
+    "input_sha256": "1e8cbd8bfd056d57c25892124405238bcad67ffd1fbfc3e9293e54aca1907ec2",
+    "note": "This is a small same-grid reanalysis hindcast/loader pilot, not real-time availability or pan-Arctic production-skill validation.",
+    "configuration_note": "The first smoke call required the UNet minimum 32x32 latent grid; no training/evaluation results were produced with 16x16."
+  },
+  "source_head": "393157f8152ef068bbf8d42198f0d2aac7641637",
+  "upstream_reference": "57057d009c485911eb99b59fc99708ae53af8870",
+  "complete_strict_equals_base": true,
+  "complete_strict_fill_bit_identical": true,
+  "training_windows": {
+    "strict": 3,
+    "fill": 5
+  },
+  "complete_test_windows": 3,
+  "missing_test_windows": {
+    "strict": 2,
+    "fill": 3
+  },
+  "torch": "2.14.1",
+  "device": "CPU",
+  "threads": 2,
+  "runs": [
+    {
+      "seed": 123,
+      "policy": "strict",
+      "initial_hash": "ee0eb19d5b9b950075f36776bcdc587bec952cb046f1f13f979e26284cc064d6",
+      "final_hash": "6eb6217d57d9c574c97fc987e66a42c6604fe915f1992eb658493ca0ef7ade3f",
+      "steps": 200,
+      "training_seconds": 19.150239999988116,
+      "training_ms_per_sample": 47.87559999997029,
+      "complete_test": {
+        "mae": 0.12999892234802246,
+        "rmse": 0.15695874392986298,
+        "per_date": [
+          {
+            "date": "2024-01-08T12:00:00.000000",
+            "mae": 0.12108487635850906,
+            "rmse": 0.1463468074798584
+          },
+          {
+            "date": "2024-01-09T12:00:00.000000",
+            "mae": 0.13781431317329407,
+            "rmse": 0.16501079499721527
+          },
+          {
+            "date": "2024-01-10T12:00:00.000000",
+            "mae": 0.13109755516052246,
+            "rmse": 0.1589408665895462
+          }
+        ]
+      },
+      "missing_test_fill": {
+        "mae": 0.20866674184799194,
+        "rmse": 0.25993767380714417,
+        "per_date": [
+          {
+            "date": "2024-01-08T12:00:00.000000",
+            "mae": 0.12108487635850906,
+            "rmse": 0.1463468074798584
+          },
+          {
+            "date": "2024-01-09T12:00:00.000000",
+            "mae": 0.3738178014755249,
+            "rmse": 0.3949977159500122
+          },
+          {
+            "date": "2024-01-10T12:00:00.000000",
+            "mae": 0.13109755516052246,
+            "rmse": 0.1589408665895462
+          }
+        ]
+      },
+      "last_loss": 0.0054226284846663475
+    },
+    {
+      "seed": 123,
+      "policy": "fill",
+      "initial_hash": "ee0eb19d5b9b950075f36776bcdc587bec952cb046f1f13f979e26284cc064d6",
+      "final_hash": "f0acbf320968f564239679420c50b0a2d2d882cd8edd2d2c3ec41c10eeccd930",
+      "steps": 200,
+      "training_seconds": 5.326320042018779,
+      "training_ms_per_sample": 13.315800105046947,
+      "complete_test": {
+        "mae": 0.1129390075802803,
+        "rmse": 0.14612482488155365,
+        "per_date": [
+          {
+            "date": "2024-01-08T12:00:00.000000",
+            "mae": 0.0998154804110527,
+            "rmse": 0.12661845982074738
+          },
+          {
+            "date": "2024-01-09T12:00:00.000000",
+            "mae": 0.12292719632387161,
+            "rmse": 0.16189514100551605
+          },
+          {
+            "date": "2024-01-10T12:00:00.000000",
+            "mae": 0.116074338555336,
+            "rmse": 0.14769943058490753
+          }
+        ]
+      },
+      "missing_test_fill": {
+        "mae": 0.11118640005588531,
+        "rmse": 0.14006246626377106,
+        "per_date": [
+          {
+            "date": "2024-01-08T12:00:00.000000",
+            "mae": 0.0998154804110527,
+            "rmse": 0.12661845982074738
+          },
+          {
+            "date": "2024-01-09T12:00:00.000000",
+            "mae": 0.11766933649778366,
+            "rmse": 0.14493148028850555
+          },
+          {
+            "date": "2024-01-10T12:00:00.000000",
+            "mae": 0.116074338555336,
+            "rmse": 0.14769943058490753
+          }
+        ]
+      },
+      "last_loss": 0.00452636182308197
+    },
+    {
+      "seed": 456,
+      "policy": "fill",
+      "initial_hash": "4a31172422eafe4025def404abd703e9518cf62c330f327e0fb524d8a10ffabb",
+      "final_hash": "bffe6effddb53a233d82b756deb70da05f6abf0ef46e530eac2cd6f12c43ca3e",
+      "steps": 200,
+      "training_seconds": 4.009826083958615,
+      "training_ms_per_sample": 10.024565209896537,
+      "complete_test": {
+        "mae": 0.12870536744594574,
+        "rmse": 0.16241027414798737,
+        "per_date": [
+          {
+            "date": "2024-01-08T12:00:00.000000",
+            "mae": 0.11536263674497604,
+            "rmse": 0.15316076576709747
+          },
+          {
+            "date": "2024-01-09T12:00:00.000000",
+            "mae": 0.14109684526920319,
+            "rmse": 0.17599405348300934
+          },
+          {
+            "date": "2024-01-10T12:00:00.000000",
+            "mae": 0.12965664267539978,
+            "rmse": 0.15715964138507843
+          }
+        ]
+      },
+      "missing_test_fill": {
+        "mae": 0.12687727808952332,
+        "rmse": 0.1616772562265396,
+        "per_date": [
+          {
+            "date": "2024-01-08T12:00:00.000000",
+            "mae": 0.11536263674497604,
+            "rmse": 0.15316076576709747
+          },
+          {
+            "date": "2024-01-09T12:00:00.000000",
+            "mae": 0.1356126070022583,
+            "rmse": 0.17395757138729095
+          },
+          {
+            "date": "2024-01-10T12:00:00.000000",
+            "mae": 0.12965664267539978,
+            "rmse": 0.15715964138507843
+          }
+        ]
+      },
+      "last_loss": 0.003476478159427643
+    },
+    {
+      "seed": 456,
+      "policy": "strict",
+      "initial_hash": "4a31172422eafe4025def404abd703e9518cf62c330f327e0fb524d8a10ffabb",
+      "final_hash": "c92ccd7450e8f7e00268ca3058907e8cd6ff552ce6e68d70a3ae188cf8e6ab1b",
+      "steps": 200,
+      "training_seconds": 5.401379542017821,
+      "training_ms_per_sample": 13.503448855044553,
+      "complete_test": {
+        "mae": 0.13119065761566162,
+        "rmse": 0.1658005714416504,
+        "per_date": [
+          {
+            "date": "2024-01-08T12:00:00.000000",
+            "mae": 0.12030623853206635,
+            "rmse": 0.15510991215705872
+          },
+          {
+            "date": "2024-01-09T12:00:00.000000",
+            "mae": 0.13891936838626862,
+            "rmse": 0.17444869875907898
+          },
+          {
+            "date": "2024-01-10T12:00:00.000000",
+            "mae": 0.1343463659286499,
+            "rmse": 0.16726641356945038
+          }
+        ]
+      },
+      "missing_test_fill": {
+        "mae": 0.21198825538158417,
+        "rmse": 0.28471022844314575,
+        "per_date": [
+          {
+            "date": "2024-01-08T12:00:00.000000",
+            "mae": 0.12030623853206635,
+            "rmse": 0.15510991215705872
+          },
+          {
+            "date": "2024-01-09T12:00:00.000000",
+            "mae": 0.38131216168403625,
+            "rmse": 0.43719857931137085
+          },
+          {
+            "date": "2024-01-10T12:00:00.000000",
+            "mae": 0.1343463659286499,
+            "rmse": 0.16726641356945038
+          }
+        ]
+      },
+      "last_loss": 0.0022298856638371944
+    }
+  ],
+  "model_only_ms_per_sample": {
+    "strict": 9.27968748146668,
+    "fill": 9.771229000762105
+  },
+  "loader_only_ms_per_sample": {
+    "strict": 0.5658539982202153,
+    "fill": 0.789444330924501
+  },
+  "loader_plus_model_ms_per_sample": {
+    "strict": 5.991784661697844,
+    "fill": 5.8196943427901715
+  },
+  "persistence": {
+    "mae": 0.049099888652563095,
+    "rmse": 0.09363829344511032
+  },
+  "complete": true
+}

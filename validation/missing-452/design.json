@@ -1,0 +1,66 @@
+{
+  "target_source": "EUMETSAT/OSI SAF sea-ice concentration, public source cache",
+  "conditioning_source": "C3S CARRA2 sea-ice concentration reanalysis, public source cache",
+  "source_files": [
+    "samp-sicnorth-osisaf-25p0km-2020-2024-24h-v1.zarr",
+    "samp-sicnorth-carra2-2p5km-2020-2024-24h-v1.zarr"
+  ],
+  "dates": [
+    "2024-01-01T12:00:00",
+    "2024-01-02T12:00:00",
+    "2024-01-03T12:00:00",
+    "2024-01-04T12:00:00",
+    "2024-01-05T12:00:00",
+    "2024-01-06T12:00:00",
+    "2024-01-07T12:00:00",
+    "2024-01-08T12:00:00",
+    "2024-01-09T12:00:00",
+    "2024-01-10T12:00:00"
+  ],
+  "crop_rows": [
+    252,
+    276
+  ],
+  "crop_columns": [
+    226,
+    250
+  ],
+  "native_target_spacing_km": 25,
+  "conditioning_alignment": "Nearest CARRA2 grid point on the unit sphere to each OSI SAF crop point. Fixed geometry; ocean pixels farther than 10 km from CARRA2 excluded.",
+  "max_included_distance_km": 1.6465955843601836,
+  "mask": "Ocean/active flags and finite values in both training sources on Jan 1-6 only, intersected with fixed geographic coverage.",
+  "mask_pixels": 303,
+  "shape": [
+    10,
+    24,
+    24
+  ],
+  "normalization": "Physical concentration fractions already in [0,1], no data-fitted normalization. Outside-mask values zero in both sources.",
+  "n_history_steps": 1,
+  "n_forecast_steps": 1,
+  "training_targets": "2024-01-02 through 2024-01-06",
+  "validation_target": "2024-01-07 (not used for checkpoint selection)",
+  "test_targets": [
+    "2024-01-08",
+    "2024-01-09",
+    "2024-01-10"
+  ],
+  "withheld_training_conditioning_dates": [
+    "2024-01-02",
+    "2024-01-04"
+  ],
+  "withheld_test_conditioning_dates": [
+    "2024-01-08"
+  ],
+  "optimizer_steps": 200,
+  "seeds": [
+    123,
+    456
+  ],
+  "checkpoint": "Fixed final step with identical initial state per seed; no selection against held-out metrics.",
+  "model": "Actual EncodeProcessDecode with NaiveLinearEncoder, UNetProcessor(start_out_channels=8), NaiveLinearDecoder, 32x32 latent grid, sigmoid range.",
+  "optimizer": "Adam, learning rate 0.001, batch size 2",
+  "input_sha256": "1e8cbd8bfd056d57c25892124405238bcad67ffd1fbfc3e9293e54aca1907ec2",
+  "note": "This is a small same-grid reanalysis hindcast/loader pilot, not real-time availability or pan-Arctic production-skill validation.",
+  "configuration_note": "The first smoke call required the UNet minimum 32x32 latent grid; no training/evaluation results were produced with 16x16."
+}
