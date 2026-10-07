@@ -1,0 +1,69 @@
+{
+  "anemoi_datasets": "0.5.45",
+  "setting": {
+    "ANEMOI_DATASETS_MISSING_DATES_FIX_EXPERIMENTAL": "1"
+  },
+  "mode": "Native reader in-memory calendar adapter; original stores opened read-only; no conversion or data copy.",
+  "stores": [
+    {
+      "stored_dates": 855,
+      "calendar_dates": 1674,
+      "missing_dates": 819,
+      "all_observed_dates_values_equal": true,
+      "values_checked": 478690560,
+      "data_sha256": "a5b7f8767658216250874df7e94fea52d5cc774c5e9f6b743c08c5f689df4fbd",
+      "adapted_data_sha256": "a5b7f8767658216250874df7e94fea52d5cc774c5e9f6b743c08c5f689df4fbd",
+      "attrs_sha256_before_after": "3d76e713e6c3eafe17b68873652dc977545fdf7ba97e3940df6239c5496105db",
+      "statistics_sha256": {
+        "minimum": "9d908ecfb6b256def8b49a7c504e6c889c4b0e41fe6ce3e01863dd7b61a20aa0",
+        "maximum": "1bca624e16cc085670ada61f45ccf7a07185a0ccd80f96cc027e73fc713ac492",
+        "mean": "00c1c2f7b5e7fb92d3e7743821477285513b421c0615762d8ed90f3e65378d7e",
+        "stdev": "e0d634d6d4ad98323740d43fe5b46140249480aff089965d4d8ddcb696a2912d"
+      },
+      "statistics_start_date": "2020-01-01T12:00:00",
+      "statistics_end_date": "2021-11-14T12:00:00",
+      "dataset": "samp-sicsouth-osisaf-25p0km-2020-2024-24h-v1.zarr"
+    },
+    {
+      "stored_dates": 855,
+      "calendar_dates": 1674,
+      "missing_dates": 819,
+      "all_observed_dates_values_equal": true,
+      "values_checked": 319127040,
+      "data_sha256": "e218ce74566d282eabaa7eb30dcc3a35ec678cb9d56fcb1f18ccc4dab0e65efc",
+      "adapted_data_sha256": "e218ce74566d282eabaa7eb30dcc3a35ec678cb9d56fcb1f18ccc4dab0e65efc",
+      "attrs_sha256_before_after": "fcf4651e2273ff698f3b2ac704bb8b93fbe91f232231d40ea064eedb54e7c207",
+      "statistics_sha256": {
+        "minimum": "e6339a1b29b05c68dba6a500175fb3181a4de48335a9b51e0e02a122163f4324",
+        "maximum": "2418f753a7ffb6f5a7b0bb411f9b62e65d21aa74189c7b5b3a4d1a10b05e93cc",
+        "mean": "34fffb8fc5ce29b78bac205dc98905ddaef2109e7531e5b42cad1ceffae7c7b4",
+        "stdev": "7190f6626ce32be52e30b0a04f61486a7a9b91ad503a08ef780f81227122991f"
+      },
+      "statistics_start_date": "2020-01-01T12:00:00",
+      "statistics_end_date": "2021-11-14T12:00:00",
+      "dataset": "samp-floatsouth-argo-25p0km-2020-2024-24h-v3.zarr"
+    },
+    {
+      "stored_dates": 855,
+      "calendar_dates": 1674,
+      "missing_dates": 819,
+      "all_observed_dates_values_equal": true,
+      "values_checked": 4467778560,
+      "data_sha256": "a9922117ef8fd65a68dacf199332ab85e179a5b2a4adad7509e4ce453f678ff3",
+      "adapted_data_sha256": "a9922117ef8fd65a68dacf199332ab85e179a5b2a4adad7509e4ce453f678ff3",
+      "attrs_sha256_before_after": "79c2be819f6a0abbc1fefbfb60ef6621f6c38001358e265b512c7adbd237fcb9",
+      "statistics_sha256": {
+        "minimum": "e02032e5dfa1c5ffbbccf21cc9a0320d1be8895341910bb0f9b2ff04fc26fba7",
+        "maximum": "e56cca96f9ae5648ead2d4d8ec2e510b0675b60392b52b43edc436cc0ae53642",
+        "mean": "f35f24eedb6ad164884ec9fc7de3c01e76762bd1177dcb33d61fa1fd737af4b4",
+        "stdev": "78ffe21e4e3a38c8889c5819ead3deeed34d16b35e11f1344a72e6350a807e21"
+      },
+      "statistics_start_date": "2020-01-01T12:00:00",
+      "statistics_end_date": "2021-11-14T12:00:00",
+      "dataset": "samp-weathersouth-era5-25p0km-2020-2024-24h-v4.zarr"
+    }
+  ],
+  "elapsed_seconds": 50.63696291699307,
+  "peak_rss_bytes_macos": 411680768,
+  "complete": true
+}

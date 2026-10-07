@@ -1,0 +1,137 @@
+{
+  "status": "Completed: all four 500-step arms, complete-input and missing-conditioning evaluations, interleaved complete-input timings, and exhaustive calendar verification passed.",
+  "source_comment": {
+    "url": "https://github.com/alan-turing-institute/cryocast/pull/452#issuecomment-5622298939",
+    "id": 5622298939,
+    "created_at": "2026-09-10T16:52:04Z",
+    "updated_at": "2026-09-10T16:52:04Z",
+    "original_code_sha256": "d5fc932a8e999917944392fcec8e2093d9b4ce9a8de79db4705dd004884ddfe6",
+    "mapping": "Five icenet_mp import/Hydra targets mapped to cryocast; current runner also uses Hemisphere.SOUTH."
+  },
+  "source": {
+    "head_verified_immediately_before_launch": "393157f8152ef068bbf8d42198f0d2aac7641637",
+    "head_recorded_by_runner_before_training": "71dd142e9c6f939e0fdc335d39a447f7f49a261b",
+    "identical_cryocast_tree_oid": "228900623d72f38ca5eb1fd50984b8f0239055e6",
+    "checkout_advance_note": "Another active writer advanced the checkout during process startup, adding only validation/missing-452 artifacts; the entire cryocast source/config tree is identical. No experimental implementation changed.",
+    "publication_branch_base": "393157f8152ef068bbf8d42198f0d2aac7641637",
+    "imported_module_files": {
+      "cryocast": {
+        "relative_to_verified_checkout": "cryocast/__init__.py",
+        "sha256": "5e0557991e39c252da5e16e98a6c718c81621bfaf354e8f7d73110d0f7fc2577"
+      },
+      "CombinedDataset": {
+        "relative_to_verified_checkout": "cryocast/data/combined_dataset.py",
+        "sha256": "4e5952afa8ae3f837c9eab3e21bb6f345fa98ca4f121bbf9358e3f4758d17083"
+      },
+      "SingleDataset": {
+        "relative_to_verified_checkout": "cryocast/data/single_dataset.py",
+        "sha256": "b67d029caac9b92635ad188f49f121770466338aac0a37bc1fb232d4a334a7cd"
+      },
+      "EncodeProcessDecode": {
+        "relative_to_verified_checkout": "cryocast/models/encode_process_decode.py",
+        "sha256": "97e96b8eeb04c533cd9a21afa2539c0e4852357f4b80de07280e09c5cc2f5ccf"
+      }
+    },
+    "path_note": "Absolute machine-specific checkout prefixes are omitted; all imported files were verified against the source commit blobs."
+  },
+  "executed_runner": {
+    "file": "executed_south_pilot.py.txt",
+    "sha256": "2281145c462aaeea719eb0feb62372ad91a06321967f07f6113bf0cb0afb9612",
+    "last_modified_at_utc": "2026-10-07T00:28:55.140000+00:00",
+    "launch_started_at_utc": "2026-10-07T00:29:19.639449+00:00"
+  },
+  "publication_runner": {
+    "file": "run_current_south_pilot.py",
+    "sha256": "e0d610ee2d6617c4ec764b698c5258078404f5edea85662b1827d6de2ca06d08",
+    "computational_ast_equal_to_executed": true,
+    "comparison_ignores": [
+      "type annotations",
+      "function docstrings",
+      "module import order and equivalent import grouping",
+      "comments and formatting"
+    ],
+    "lint_exceptions": [
+      "C901",
+      "FBT001",
+      "FBT002",
+      "PLC0415",
+      "PLR0912",
+      "PLR0915",
+      "PLR2004",
+      "PT018",
+      "S101",
+      "S607",
+      "T201"
+    ]
+  },
+  "calendar_verifier": {
+    "file": "verify_legacy_calendar.py",
+    "sha256": "e38a7ab701e2c204ebd3e3242d4d7c71ee4469c345c3704f3b745835eecd2a82",
+    "publication_ast_equal_to_portable_preformat_source": true,
+    "portable_changes": [
+      "Replace original fixed data/output directories with CLI arguments",
+      "Emit dataset basenames instead of machine-specific absolute paths",
+      "Explicitly assert analytics remains disabled"
+    ],
+    "lint_exceptions": [
+      "PLC0415",
+      "PLR0915",
+      "PT018",
+      "S101",
+      "T201"
+    ],
+    "original_executed_verifier_sha256": "497d0fa0adf2f82dfd7847d4133f39e7e91082836b4ea9640cde4a62d4f05479"
+  },
+  "calendar": {
+    "verification_file": "calendar-verification.json",
+    "setting": {
+      "ANEMOI_DATASETS_MISSING_DATES_FIX_EXPERIMENTAL": "1"
+    },
+    "native_reader": "anemoi.datasets.usage.gridded.store.ZarrWithMissingDatesFix",
+    "all_observed_values_verified": 5265596160,
+    "source_caches_modified": false
+  },
+  "execution": {
+    "started_at_utc": "2026-10-07T00:29:19.639449+00:00",
+    "source_checkout_clean": true,
+    "cpu_count": 15,
+    "hardware_memory_bytes": 25769803776,
+    "load_before": "{ 4.90 10.00 10.30 }",
+    "runtime_budget_seconds": 1200,
+    "thread_budget": 4,
+    "exit_code": 0,
+    "finished_at_utc": "2026-10-07T00:36:43.429239+00:00",
+    "wall_seconds": 443.7800168750109,
+    "load_after": "{ 6.59 10.19 10.53 }"
+  },
+  "reproduction_command": [
+    "<python>",
+    "-B",
+    "run_current_south_pilot.py",
+    "--data",
+    "<sample-stores>",
+    "--output",
+    "current-results.json",
+    "--steps",
+    "500"
+  ],
+  "result_file": "current-results.json",
+  "summary_file": "summary.json",
+  "environment_file": "environment.json",
+  "complete": true,
+  "peak_rss_bytes_macos": 805814272,
+  "validation": {
+    "matched_initialisation_within_each_seed": true,
+    "complete_test_tensors_bit_identical": true,
+    "all_four_arms_complete": true,
+    "publication_json_matches_original_results": true,
+    "published_cli_help_exit_codes": {
+      "runner": 0,
+      "calendar_verifier": 0
+    },
+    "ruff_version": "0.16.10",
+    "ruff_all_rules_check_passed": true,
+    "ruff_format_check_passed": true,
+    "repository_pre_commit_passed": true
+  }
+}

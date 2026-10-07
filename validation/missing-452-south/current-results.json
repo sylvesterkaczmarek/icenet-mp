@@ -1,0 +1,635 @@
+{
+  "scope": "Reduced-model CPU pilot on real sample_south observations; all-grid metrics, no production-skill claim.",
+  "torch": "2.14.1",
+  "threads": 4,
+  "steps_per_run": 500,
+  "batch_size": 2,
+  "latent_shape": [
+    32,
+    32
+  ],
+  "unet_start_channels": 8,
+  "input_variables": {
+    "sic-osisaf": [
+      "samp-sicsouth-osisaf-25p0km-2020-2024-24h-v1.zarr",
+      [
+        "ice_conc"
+      ]
+    ],
+    "float-argo": [
+      "samp-floatsouth-argo-25p0km-2020-2024-24h-v3.zarr",
+      [
+        "PSAL",
+        "TEMP"
+      ]
+    ],
+    "era5": [
+      "samp-weathersouth-era5-25p0km-2020-2024-24h-v4.zarr",
+      [
+        "10u",
+        "10v",
+        "2t",
+        "msl"
+      ]
+    ]
+  },
+  "training_period": [
+    {
+      "start": "2020-01-01",
+      "end": "2021-12-31"
+    }
+  ],
+  "test_period": [
+    {
+      "start": "2024-01-01",
+      "end": "2024-01-31"
+    },
+    {
+      "start": "2024-07-01",
+      "end": "2024-07-31"
+    }
+  ],
+  "training_windows": {
+    "strict": 290,
+    "fill": 727
+  },
+  "test_windows": 54,
+  "statistics_periods": {
+    "sic-osisaf": [
+      "2020-01-01T12:00:00",
+      "2021-11-14T12:00:00"
+    ],
+    "float-argo": [
+      "2020-01-01T12:00:00",
+      "2021-11-14T12:00:00"
+    ],
+    "era5": [
+      "2020-01-01T12:00:00",
+      "2021-11-14T12:00:00"
+    ]
+  },
+  "runs": [
+    {
+      "seed": 123,
+      "policy": "strict",
+      "training_seconds": 88.56616270804079,
+      "training_cpu_seconds": 81.20107800000001,
+      "all_grid_mae_per_lead": [
+        0.04523989213603006,
+        0.047668881180093894
+      ],
+      "all_grid_rmse_per_lead": [
+        0.08178022065694283,
+        0.08369447169172604
+      ],
+      "missing_conditioning_test": {
+        "all_grid_mae_per_lead": [
+          0.04998583096133009,
+          0.05122219089414571
+        ],
+        "all_grid_rmse_per_lead": [
+          0.08684221286419792,
+          0.08852596229153627
+        ]
+      },
+      "initial_state_sha256": "f064ee1893d4ceab2938d51da63faad0cc8ad2ba9d61b91fe0b9f58318672281",
+      "final_state_sha256": "42d24d6036bcae5cdaa304e8ad398fe516ce8aafe6ec1142b5af033c8164fc2d",
+      "checkpoint": "checkpoint-seed123-strict.pt",
+      "other_processes_before_training": [
+        {
+          "pid": 544,
+          "cpu_percent": 0.0,
+          "executable": "UVCAssistant"
+        },
+        {
+          "pid": 74576,
+          "cpu_percent": 0.7,
+          "executable": "UVFSService"
+        },
+        {
+          "pid": 69476,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 69587,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 69588,
+          "cpu_percent": 98.4,
+          "executable": "Python"
+        }
+      ],
+      "other_processes_after_training": [
+        {
+          "pid": 544,
+          "cpu_percent": 0.0,
+          "executable": "UVCAssistant"
+        },
+        {
+          "pid": 74576,
+          "cpu_percent": 1.1,
+          "executable": "UVFSService"
+        },
+        {
+          "pid": 69476,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 69587,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 69588,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        }
+      ]
+    },
+    {
+      "seed": 123,
+      "policy": "fill",
+      "training_seconds": 114.17895420902641,
+      "training_cpu_seconds": 90.758586,
+      "all_grid_mae_per_lead": [
+        0.04467867068012243,
+        0.04827910316737368
+      ],
+      "all_grid_rmse_per_lead": [
+        0.08133149251647068,
+        0.0862202141973441
+      ],
+      "missing_conditioning_test": {
+        "all_grid_mae_per_lead": [
+          0.044611477056202165,
+          0.04833930035117549
+        ],
+        "all_grid_rmse_per_lead": [
+          0.08127776009304767,
+          0.08621704804679939
+        ]
+      },
+      "initial_state_sha256": "f064ee1893d4ceab2938d51da63faad0cc8ad2ba9d61b91fe0b9f58318672281",
+      "final_state_sha256": "6d1bb87e2c630ef7b8908172e13bbc0d4ff1a1ca95fe10c78a4eb5c948cb0669",
+      "checkpoint": "checkpoint-seed123-fill.pt",
+      "other_processes_before_training": [
+        {
+          "pid": 544,
+          "cpu_percent": 0.0,
+          "executable": "UVCAssistant"
+        },
+        {
+          "pid": 74576,
+          "cpu_percent": 0.6,
+          "executable": "UVFSService"
+        },
+        {
+          "pid": 69476,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 69587,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 69588,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        }
+      ],
+      "other_processes_after_training": [
+        {
+          "pid": 544,
+          "cpu_percent": 0.0,
+          "executable": "UVCAssistant"
+        },
+        {
+          "pid": 74576,
+          "cpu_percent": 0.0,
+          "executable": "UVFSService"
+        },
+        {
+          "pid": 69476,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 69587,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 69588,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 71477,
+          "cpu_percent": 0.1,
+          "executable": "Python"
+        }
+      ]
+    },
+    {
+      "seed": 456,
+      "policy": "fill",
+      "training_seconds": 86.02176579204388,
+      "training_cpu_seconds": 79.248118,
+      "all_grid_mae_per_lead": [
+        0.047113090727789284,
+        0.048058759526046796
+      ],
+      "all_grid_rmse_per_lead": [
+        0.08193425389737516,
+        0.08387943977099815
+      ],
+      "missing_conditioning_test": {
+        "all_grid_mae_per_lead": [
+          0.047098830532963466,
+          0.04792169182050199
+        ],
+        "all_grid_rmse_per_lead": [
+          0.08191103387824976,
+          0.08362137980812796
+        ]
+      },
+      "initial_state_sha256": "42630e7fef0c1af2c7917078c04697e24e3f045d06ac420590d66060d919fe06",
+      "final_state_sha256": "dfb28c4c4767e40a88292c84bc67c39c60b15dedd200b05dd807fba1579ef163",
+      "checkpoint": "checkpoint-seed456-fill.pt",
+      "other_processes_before_training": [
+        {
+          "pid": 544,
+          "cpu_percent": 0.0,
+          "executable": "UVCAssistant"
+        },
+        {
+          "pid": 74576,
+          "cpu_percent": 0.9,
+          "executable": "UVFSService"
+        },
+        {
+          "pid": 69476,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 69587,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 69588,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 71477,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        }
+      ],
+      "other_processes_after_training": [
+        {
+          "pid": 544,
+          "cpu_percent": 0.0,
+          "executable": "UVCAssistant"
+        },
+        {
+          "pid": 72716,
+          "cpu_percent": 0.0,
+          "executable": "(Python)"
+        },
+        {
+          "pid": 74576,
+          "cpu_percent": 0.0,
+          "executable": "UVFSService"
+        },
+        {
+          "pid": 69476,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 69587,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 69588,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        }
+      ]
+    },
+    {
+      "seed": 456,
+      "policy": "strict",
+      "training_seconds": 118.8483641659841,
+      "training_cpu_seconds": 81.87383200000005,
+      "all_grid_mae_per_lead": [
+        0.04762859529484962,
+        0.04604878930277874
+      ],
+      "all_grid_rmse_per_lead": [
+        0.08416306930189621,
+        0.08356573572914988
+      ],
+      "missing_conditioning_test": {
+        "all_grid_mae_per_lead": [
+          0.04834355850425302,
+          0.047858223832478654
+        ],
+        "all_grid_rmse_per_lead": [
+          0.08657527536073029,
+          0.0895666687711708
+        ]
+      },
+      "initial_state_sha256": "42630e7fef0c1af2c7917078c04697e24e3f045d06ac420590d66060d919fe06",
+      "final_state_sha256": "cdea892274476b05bf464f54ce95025d96dd89f3919f92c9022a3075365013e5",
+      "checkpoint": "checkpoint-seed456-strict.pt",
+      "other_processes_before_training": [
+        {
+          "pid": 544,
+          "cpu_percent": 0.0,
+          "executable": "UVCAssistant"
+        },
+        {
+          "pid": 74576,
+          "cpu_percent": 4.4,
+          "executable": "UVFSService"
+        },
+        {
+          "pid": 69476,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 69587,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 69588,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 72718,
+          "cpu_percent": 1.9,
+          "executable": "Python"
+        }
+      ],
+      "other_processes_after_training": [
+        {
+          "pid": 544,
+          "cpu_percent": 0.0,
+          "executable": "UVCAssistant"
+        },
+        {
+          "pid": 74576,
+          "cpu_percent": 0.0,
+          "executable": "UVFSService"
+        },
+        {
+          "pid": 69476,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 69587,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        },
+        {
+          "pid": 69588,
+          "cpu_percent": 0.0,
+          "executable": "Python"
+        }
+      ]
+    }
+  ],
+  "complete": true,
+  "source_head": "71dd142e9c6f939e0fdc335d39a447f7f49a261b",
+  "source_comment": "https://github.com/alan-turing-institute/cryocast/pull/452#issuecomment-5622298939",
+  "run_kind": "Reproduction of September design on current code, with a separately labelled missing-conditioning test extension.",
+  "reader_compatibility": {
+    "ANEMOI_DATASETS_MISSING_DATES_FIX_EXPERIMENTAL": "1"
+  },
+  "calendar_verification": "calendar-verification.json",
+  "python": "3.12.11",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "device": "CPU",
+  "complete_test_dates": [
+    "2024-01-01T12:00:00.000000",
+    "2024-01-02T12:00:00.000000",
+    "2024-01-03T12:00:00.000000",
+    "2024-01-04T12:00:00.000000",
+    "2024-01-05T12:00:00.000000",
+    "2024-01-06T12:00:00.000000",
+    "2024-01-07T12:00:00.000000",
+    "2024-01-08T12:00:00.000000",
+    "2024-01-09T12:00:00.000000",
+    "2024-01-10T12:00:00.000000",
+    "2024-01-11T12:00:00.000000",
+    "2024-01-12T12:00:00.000000",
+    "2024-01-13T12:00:00.000000",
+    "2024-01-14T12:00:00.000000",
+    "2024-01-15T12:00:00.000000",
+    "2024-01-16T12:00:00.000000",
+    "2024-01-17T12:00:00.000000",
+    "2024-01-18T12:00:00.000000",
+    "2024-01-19T12:00:00.000000",
+    "2024-01-20T12:00:00.000000",
+    "2024-01-21T12:00:00.000000",
+    "2024-01-22T12:00:00.000000",
+    "2024-01-23T12:00:00.000000",
+    "2024-01-24T12:00:00.000000",
+    "2024-01-25T12:00:00.000000",
+    "2024-01-26T12:00:00.000000",
+    "2024-01-27T12:00:00.000000",
+    "2024-07-01T12:00:00.000000",
+    "2024-07-02T12:00:00.000000",
+    "2024-07-03T12:00:00.000000",
+    "2024-07-04T12:00:00.000000",
+    "2024-07-05T12:00:00.000000",
+    "2024-07-06T12:00:00.000000",
+    "2024-07-07T12:00:00.000000",
+    "2024-07-08T12:00:00.000000",
+    "2024-07-09T12:00:00.000000",
+    "2024-07-10T12:00:00.000000",
+    "2024-07-11T12:00:00.000000",
+    "2024-07-12T12:00:00.000000",
+    "2024-07-13T12:00:00.000000",
+    "2024-07-14T12:00:00.000000",
+    "2024-07-15T12:00:00.000000",
+    "2024-07-16T12:00:00.000000",
+    "2024-07-17T12:00:00.000000",
+    "2024-07-18T12:00:00.000000",
+    "2024-07-19T12:00:00.000000",
+    "2024-07-20T12:00:00.000000",
+    "2024-07-21T12:00:00.000000",
+    "2024-07-22T12:00:00.000000",
+    "2024-07-23T12:00:00.000000",
+    "2024-07-24T12:00:00.000000",
+    "2024-07-25T12:00:00.000000",
+    "2024-07-26T12:00:00.000000",
+    "2024-07-27T12:00:00.000000"
+  ],
+  "missing_test_windows": {
+    "strict": 20,
+    "fill": 54
+  },
+  "missing_test_protocol": "Remove every fifth held-out Argo date, matching the training removal rule; evaluate both trained models using fill-enabled inference on the same 54 windows. Strict-loader retained coverage is reported separately.",
+  "normalization": "Original source minimum/maximum statistics, 2020-01-01 through 2021-11-14; no test-period fitting.",
+  "quality_limitations": "All-grid metrics, two seeds, fixed 500-step reduced UNet pilot; no ocean/active mask, no convergence or production-skill claim.",
+  "other_processes_before_inference": [
+    {
+      "pid": 544,
+      "cpu_percent": 0.0,
+      "executable": "UVCAssistant"
+    },
+    {
+      "pid": 74576,
+      "cpu_percent": 0.4,
+      "executable": "UVFSService"
+    },
+    {
+      "pid": 69476,
+      "cpu_percent": 0.0,
+      "executable": "Python"
+    },
+    {
+      "pid": 69587,
+      "cpu_percent": 0.0,
+      "executable": "Python"
+    },
+    {
+      "pid": 69588,
+      "cpu_percent": 0.0,
+      "executable": "Python"
+    }
+  ],
+  "model_only_ms_per_sample": {
+    "strict": 3.3913960069185123,
+    "fill": 3.148353993310593
+  },
+  "model_only_raw_ms_per_sample": {
+    "strict": [
+      2.9762084886897355,
+      2.9101874970365316,
+      2.908416499849409,
+      3.7582499790005386,
+      3.4818330022972077,
+      3.230291506042704,
+      3.48429151927121,
+      3.332854510517791,
+      3.195875004166737,
+      3.5535205097403377,
+      3.6665835068561137,
+      3.471750009339303,
+      4.0097500022966415,
+      3.9185000059660524,
+      3.6010000039823353,
+      4.313520999858156,
+      3.738458501175046,
+      3.4499375033192337,
+      2.7700210048351437,
+      2.8534999873954803,
+      2.845957991667092,
+      2.9245420009829104,
+      3.8323334883898497,
+      2.8618329961318523,
+      2.889812516514212,
+      2.8196460043545812,
+      2.8223125264048576,
+      4.0863335016183555,
+      5.1334585004951805,
+      3.035354020539671
+    ],
+    "fill": [
+      2.8969375125598162,
+      2.943208528449759,
+      2.972082991618663,
+      3.285979008069262,
+      3.399770997930318,
+      3.442832996370271,
+      3.9933329971972853,
+      3.09108299552463,
+      3.6099585122428834,
+      3.4778749977704138,
+      3.366103977896273,
+      3.5113540070597082,
+      4.108166525838897,
+      3.574250004021451,
+      3.5234999959357083,
+      3.765437490073964,
+      3.0718125053681433,
+      2.8362084995023906,
+      2.8545625100377947,
+      3.3779585210140795,
+      3.076312510529533,
+      2.8242084954399616,
+      3.0197080050129443,
+      2.8987294936086982,
+      2.8434584964998066,
+      2.812999999150634,
+      3.205624991096556,
+      3.0030834896024317,
+      3.2786460069473833,
+      2.8995835164096206
+    ]
+  },
+  "end_to_end_ms_per_sample": {
+    "strict": 16.18054166653935,
+    "fill": 15.939683638862334
+  },
+  "end_to_end_raw_ms_per_sample": {
+    "strict": [
+      16.294724536473275,
+      16.944243833508896,
+      16.066358796605428,
+      15.915949074378995
+    ],
+    "fill": [
+      15.891476074035314,
+      16.858390444044577,
+      15.955959870350652,
+      15.923407407374016
+    ]
+  },
+  "complete_input_tensors_bit_identical": true,
+  "other_processes_after_inference": [
+    {
+      "pid": 544,
+      "cpu_percent": 0.0,
+      "executable": "UVCAssistant"
+    },
+    {
+      "pid": 74576,
+      "cpu_percent": 0.0,
+      "executable": "UVFSService"
+    },
+    {
+      "pid": 69476,
+      "cpu_percent": 0.0,
+      "executable": "Python"
+    },
+    {
+      "pid": 69587,
+      "cpu_percent": 0.0,
+      "executable": "Python"
+    },
+    {
+      "pid": 69588,
+      "cpu_percent": 0.0,
+      "executable": "Python"
+    }
+  ],
+  "peak_rss_bytes_macos": 805814272
+}

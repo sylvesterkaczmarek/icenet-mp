@@ -1,0 +1,39 @@
+{
+  "complete": true,
+  "source_head_recorded_by_runner": "71dd142e9c6f939e0fdc335d39a447f7f49a261b",
+  "policies": {
+    "strict": {
+      "mean_training_wall_seconds": 103.70726343701244,
+      "mean_training_cpu_seconds": 81.53745500000002,
+      "complete_mae": 0.04664653947843808,
+      "complete_mean_per_lead_rmse": 0.08330087434492875,
+      "missing_mae": 0.04935245104805187,
+      "missing_mean_per_lead_rmse": 0.08787752982190881,
+      "model_only_median_ms_per_sample": 3.3913960069185123,
+      "end_to_end_median_ms_per_sample": 16.18054166653935
+    },
+    "fill": {
+      "mean_training_wall_seconds": 100.10036000053515,
+      "mean_training_cpu_seconds": 85.003352,
+      "complete_mae": 0.04703240602533305,
+      "complete_mean_per_lead_rmse": 0.08334135009554702,
+      "missing_mae": 0.04699282494021078,
+      "missing_mean_per_lead_rmse": 0.0832568054565562,
+      "model_only_median_ms_per_sample": 3.148353993310593,
+      "end_to_end_median_ms_per_sample": 15.939683638862334
+    }
+  },
+  "metric_definition": "Mean across two seeds and two per-lead metrics; RMSE is averaged after the per-lead square root.",
+  "error_units": "Loader-normalized SIC",
+  "missing_test_inference": "Both trained models use fill-enabled inference on the same 54 windows; strict operational loader coverage is 20/54 and fill coverage is 54/54.",
+  "training_windows": {
+    "strict": 290,
+    "fill": 727
+  },
+  "missing_test_windows": {
+    "strict": 20,
+    "fill": 54
+  },
+  "wall_seconds": 443.7800168750109,
+  "peak_rss_bytes_macos": 805814272
+}

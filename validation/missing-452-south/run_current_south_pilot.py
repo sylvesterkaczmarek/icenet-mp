@@ -1,0 +1,414 @@
+#!/usr/bin/env python3
+# Benchmark exceptions preserve executed control flow and explicit scientific checks.
+# See README.md for the rationale and provenance.json for AST equivalence.
+# ruff: noqa: C901, FBT001, FBT002, PLC0415, PLR0912, PLR0915, PLR2004, PT018, S101, S607, T201
+"""Controlled real-data pilot for PR 452, using read-only sample stores."""
+
+import argparse
+import copy
+import hashlib
+import json
+import os
+import platform
+import resource
+import statistics
+import subprocess
+import time
+from pathlib import Path
+
+import numpy as np
+import torch
+import zarr
+from omegaconf import DictConfig
+from torch.utils.data import DataLoader
+
+import cryocast
+from cryocast.data import CombinedDataset, SingleDataset
+from cryocast.models import EncodeProcessDecode
+from cryocast.types import Hemisphere
+
+TRAIN = [{"start": "2020-01-01", "end": "2021-12-31"}]
+TEST = [
+    {"start": "2024-01-01", "end": "2024-01-31"},
+    {"start": "2024-07-01", "end": "2024-07-31"},
+]
+SOURCES = {
+    "sic-osisaf": ("samp-sicsouth-osisaf-25p0km-2020-2024-24h-v1.zarr", ["ice_conc"]),
+    "float-argo": (
+        "samp-floatsouth-argo-25p0km-2020-2024-24h-v3.zarr",
+        ["PSAL", "TEMP"],
+    ),
+    "era5": (
+        "samp-weathersouth-era5-25p0km-2020-2024-24h-v4.zarr",
+        ["10u", "10v", "2t", "msl"],
+    ),
+}
+
+
+def dataset(
+    base: Path, periods: list[dict[str, str]], allow: bool, missing: bool = False
+) -> CombinedDataset:
+    """Construct the original sample windows for one data-handling policy."""
+    sources = []
+    for name, (filename, variables) in SOURCES.items():
+        source = SingleDataset(
+            name, [base / filename], date_ranges=periods, variables=variables
+        )
+        if missing and name == "float-argo":
+            source.dates = [date for i, date in enumerate(source.dates) if i % 5 != 2]
+        sources.append(source)
+    return CombinedDataset(
+        sources,
+        target_group_name="sic-osisaf",
+        target_variables=["ice_conc"],
+        n_history_steps=3,
+        n_forecast_steps=2,
+        allow_missing_inputs=allow,
+    )
+
+
+def model_for(ds: CombinedDataset) -> EncodeProcessDecode:
+    """Build the native reduced model used by the recovered pilot."""
+    spaces = [s.space.to_dict() for s in ds.inputs]
+    encoders = {"latent_space": [32, 32]}
+    encoders.update(
+        {
+            s.name: {"_target_": "cryocast.models.encoders.NaiveLinearEncoder"}
+            for s in ds.inputs
+        }
+    )
+    return EncodeProcessDecode(
+        encoders=DictConfig(encoders),
+        processor=DictConfig(
+            {
+                "_target_": "cryocast.models.processors.UNetProcessor",
+                "start_out_channels": 8,
+            }
+        ),
+        decoder=DictConfig(
+            {
+                "_target_": "cryocast.models.decoders.NaiveLinearDecoder",
+                "restrict_range": "sigmoid",
+                "mask_type": None,
+            }
+        ),
+        target_variable_indices=[0],
+        hemisphere=Hemisphere.SOUTH,
+        input_spaces=spaces,
+        output_space=ds.target.space.to_dict(),
+        n_history_steps=3,
+        n_forecast_steps=2,
+        name="missing-real-pilot",
+        metrics=[],
+        loss=DictConfig({"_target_": "torch.nn.MSELoss"}),
+        optimizer=DictConfig({"_target_": "torch.optim.Adam", "lr": 1e-3}),
+        scheduler=DictConfig({}),
+        lr_scheduler=DictConfig({}),
+    )
+
+
+def inputs_and_target(
+    batch: dict[str, torch.Tensor],
+) -> tuple[dict[str, torch.Tensor], torch.Tensor]:
+    """Extract finite input and target tensors without changing their values."""
+    target = batch["target"].float()
+    inputs = {
+        name: values.float() for name, values in batch.items() if name != "target"
+    }
+    assert torch.isfinite(target).all() and all(
+        torch.isfinite(v).all() for v in inputs.values()
+    )
+    return inputs, target
+
+
+def evaluate(model: EncodeProcessDecode, ds: CombinedDataset) -> dict[str, list[float]]:
+    """Calculate all-grid normalised error separately for each forecast lead."""
+    errors = torch.zeros(2, dtype=torch.float64)
+    squares = torch.zeros(2, dtype=torch.float64)
+    counts = 0
+    model.eval()
+    with torch.inference_mode():
+        for batch in DataLoader(ds, batch_size=2, num_workers=0):
+            inputs, target = inputs_and_target(batch)
+            delta = model(inputs) - target
+            assert torch.isfinite(delta).all()
+            errors += delta.abs().double().sum(dim=(0, 2, 3, 4))
+            squares += delta.double().square().sum(dim=(0, 2, 3, 4))
+            counts += (
+                target.shape[0] * target.shape[2] * target.shape[3] * target.shape[4]
+            )
+    return {
+        "all_grid_mae_per_lead": (errors / counts).tolist(),
+        "all_grid_rmse_per_lead": (squares / counts).sqrt().tolist(),
+    }
+
+
+def state_digest(state: dict[str, torch.Tensor]) -> str:
+    """Hash the exact ordered model state for matched-initialisation checks."""
+    digest = hashlib.sha256()
+    for name, value in sorted(state.items()):
+        digest.update(name.encode())
+        digest.update(str((value.dtype, tuple(value.shape))).encode())
+        digest.update(value.detach().cpu().contiguous().numpy().tobytes())
+    return digest.hexdigest()
+
+
+def process_snapshot() -> list[dict[str, int | float | str]]:
+    """Record active compute process names without exposing command arguments."""
+    rows = []
+    raw = subprocess.check_output(["ps", "-axo", "pid,pcpu,comm"], text=True)
+    for line in raw.splitlines()[1:]:
+        fields = line.strip().split(None, 2)
+        if len(fields) != 3:
+            continue
+        pid, cpu, executable = fields
+        if int(pid) == os.getpid():
+            continue
+        if any(
+            name in executable.lower()
+            for name in [
+                "python",
+                "pytest",
+                "pyrefly",
+                "clang",
+                "gradle",
+                "java",
+                "/uv",
+            ]
+        ):
+            rows.append(
+                {
+                    "pid": int(pid),
+                    "cpu_percent": float(cpu),
+                    "executable": Path(executable).name,
+                }
+            )
+    return rows
+
+
+def run(base: Path, output: Path, steps: int) -> None:
+    """Run the fixed-budget comparison and separately labelled missing-input test."""
+    root = Path(__file__).parent
+    verification = json.loads((root / "calendar-verification.json").read_text())
+    assert verification["complete"] and all(
+        r["all_observed_dates_values_equal"] for r in verification["stores"]
+    )
+    assert os.environ.get("ANEMOI_DATASETS_MISSING_DATES_FIX_EXPERIMENTAL") == "1"
+    analytics_path = Path.home() / ".config/anemoi/analytics.json"
+    analytics_options = (
+        json.loads(analytics_path.read_text()) if analytics_path.exists() else {}
+    )
+    assert not analytics_options.get("enabled", False), (
+        "Anemoi analytics must remain disabled for this local benchmark."
+    )
+    torch.set_num_threads(4)
+    torch.set_num_interop_threads(1)
+    torch.manual_seed(123)
+    training = {
+        name: dataset(base, TRAIN, allow, missing=True)
+        for name, allow in [("strict", False), ("fill", True)]
+    }
+    testing = {
+        name: dataset(base, TEST, allow)
+        for name, allow in [("strict", False), ("fill", True)]
+    }
+    assert testing["strict"].dates == testing["fill"].dates
+    missing_testing = {
+        name: dataset(base, TEST, allow, missing=True)
+        for name, allow in [("strict", False), ("fill", True)]
+    }
+    assert testing["strict"].dates == missing_testing["fill"].dates
+    assert {name: len(ds) for name, ds in training.items()} == {
+        "strict": 290,
+        "fill": 727,
+    }
+    assert len(testing["strict"]) == 54
+    result = {
+        "scope": "Reduced-model CPU pilot on real sample_south observations; all-grid metrics, no production-skill claim.",
+        "torch": torch.__version__,
+        "threads": 4,
+        "steps_per_run": steps,
+        "batch_size": 2,
+        "latent_shape": [32, 32],
+        "unet_start_channels": 8,
+        "input_variables": SOURCES,
+        "training_period": TRAIN,
+        "test_period": TEST,
+        "training_windows": {k: len(v) for k, v in training.items()},
+        "test_windows": len(testing["strict"]),
+        "statistics_periods": {},
+        "runs": [],
+    }
+    result.update(
+        {
+            "complete": False,
+            "source_head": subprocess.check_output(
+                ["git", "rev-parse", "HEAD"],
+                cwd=Path(cryocast.__file__).resolve().parent.parent,
+                text=True,
+            ).strip(),
+            "source_comment": "https://github.com/alan-turing-institute/cryocast/pull/452#issuecomment-5622298939",
+            "run_kind": "Reproduction of September design on current code, with a separately labelled missing-conditioning test extension.",
+            "reader_compatibility": verification["setting"],
+            "calendar_verification": "calendar-verification.json",
+            "python": platform.python_version(),
+            "platform": platform.platform(),
+            "device": "CPU",
+            "complete_test_dates": [str(d) for d in testing["strict"].dates],
+            "missing_test_windows": {
+                name: len(ds) for name, ds in missing_testing.items()
+            },
+            "missing_test_protocol": "Remove every fifth held-out Argo date, matching the training removal rule; evaluate both trained models using fill-enabled inference on the same 54 windows. Strict-loader retained coverage is reported separately.",
+            "normalization": "Original source minimum/maximum statistics, 2020-01-01 through 2021-11-14; no test-period fitting.",
+            "quality_limitations": "All-grid metrics, two seeds, fixed 500-step reduced UNet pilot; no ocean/active mask, no convergence or production-skill claim.",
+        }
+    )
+    for name, (filename, _) in SOURCES.items():
+        store = zarr.open(str(base / filename), mode="r")
+        start, end = (
+            store.attrs["statistics_start_date"],
+            store.attrs["statistics_end_date"],
+        )
+        assert np.datetime64(end) < np.datetime64("2022-01-01")
+        result["statistics_periods"][name] = [start, end]
+    # Finish reader analytics-worker startup before any timed training. Analytics
+    # is disabled above; Anemoi 0.5.45 still creates this worker for every setting.
+    from anemoi.datasets.usage.analytics import _executor
+
+    _executor.submit(int, 0).result(timeout=60)
+    print(
+        "DATA_READY",
+        result["training_windows"],
+        "TEST",
+        result["test_windows"],
+        "MISSING",
+        result["missing_test_windows"],
+        flush=True,
+    )
+    output.write_text(json.dumps(result, indent=2))
+    for seed in [123, 456]:
+        torch.manual_seed(seed)
+        initial = model_for(training["fill"])
+        state = copy.deepcopy(initial.state_dict())
+        initial_hash = state_digest(state)
+        for policy in ["strict", "fill"] if seed == 123 else ["fill", "strict"]:
+            torch.manual_seed(seed)
+            model = model_for(training[policy])
+            model.load_state_dict(state)
+            assert state_digest(model.state_dict()) == initial_hash
+            model.train()
+            optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+            loader = DataLoader(
+                training[policy],
+                batch_size=2,
+                shuffle=True,
+                num_workers=0,
+                generator=torch.Generator().manual_seed(seed),
+                drop_last=True,
+            )
+            iterator = iter(loader)
+            workload_before = process_snapshot()
+            cpu_start = time.process_time()
+            start = time.perf_counter()
+            for step in range(steps):
+                try:
+                    batch = next(iterator)
+                except StopIteration:
+                    iterator = iter(loader)
+                    batch = next(iterator)
+                inputs, target = inputs_and_target(batch)
+                optimizer.zero_grad(set_to_none=True)
+                loss = torch.nn.functional.mse_loss(model(inputs), target)
+                assert torch.isfinite(loss)
+                loss.backward()
+                optimizer.step()
+                if (step + 1) % 100 == 0:
+                    print(
+                        "PROGRESS",
+                        seed,
+                        policy,
+                        step + 1,
+                        "elapsed_seconds",
+                        time.perf_counter() - start,
+                        flush=True,
+                    )
+            elapsed = time.perf_counter() - start
+            cpu_elapsed = time.process_time() - cpu_start
+            workload_after = process_snapshot()
+            scores = evaluate(model, testing["strict"])
+            missing_scores = evaluate(model, missing_testing["fill"])
+            checkpoint = output.parent / f"checkpoint-seed{seed}-{policy}.pt"
+            torch.save(model.state_dict(), checkpoint)
+            result["runs"].append(
+                {
+                    "seed": seed,
+                    "policy": policy,
+                    "training_seconds": elapsed,
+                    "training_cpu_seconds": cpu_elapsed,
+                    **scores,
+                    "missing_conditioning_test": missing_scores,
+                    "initial_state_sha256": initial_hash,
+                    "final_state_sha256": state_digest(model.state_dict()),
+                    "checkpoint": checkpoint.name,
+                    "other_processes_before_training": workload_before,
+                    "other_processes_after_training": workload_after,
+                }
+            )
+            print("RUN", result["runs"][-1], flush=True)
+            output.write_text(json.dumps(result, indent=2))
+    # Identical weights and common complete-input windows isolate the fill-path overhead.
+    result["other_processes_before_inference"] = process_snapshot()
+    model.eval()
+    strict_loader = DataLoader(testing["strict"], batch_size=2, num_workers=0)
+    fill_loader = DataLoader(testing["fill"], batch_size=2, num_workers=0)
+    with torch.inference_mode():
+        for a, b in zip(strict_loader, fill_loader, strict=True):
+            for name in a:
+                torch.testing.assert_close(a[name], b[name], rtol=0, atol=0)
+        batches = {
+            name: inputs_and_target(next(iter(loader)))[0]
+            for name, loader in [("strict", strict_loader), ("fill", fill_loader)]
+        }
+        for _ in range(5):
+            model(batches["strict"])
+        timings = {"strict": [], "fill": []}
+        for rep in range(30):
+            for name in ["strict", "fill"] if rep % 2 == 0 else ["fill", "strict"]:
+                start = time.perf_counter()
+                model(batches[name])
+                timings[name].append((time.perf_counter() - start) / 2)
+        result["model_only_ms_per_sample"] = {
+            k: 1000 * statistics.median(v) for k, v in timings.items()
+        }
+        result["model_only_raw_ms_per_sample"] = {
+            k: [1000 * x for x in v] for k, v in timings.items()
+        }
+        timings = {"strict": [], "fill": []}
+        for rep in range(4):
+            for name in ["strict", "fill"] if rep % 2 == 0 else ["fill", "strict"]:
+                start = time.perf_counter()
+                for batch in DataLoader(testing[name], batch_size=2, num_workers=0):
+                    inputs, _ = inputs_and_target(batch)
+                    model(inputs)
+                timings[name].append((time.perf_counter() - start) / len(testing[name]))
+        result["end_to_end_ms_per_sample"] = {
+            k: 1000 * statistics.median(v) for k, v in timings.items()
+        }
+        result["end_to_end_raw_ms_per_sample"] = {
+            k: [1000 * x for x in v] for k, v in timings.items()
+        }
+    result["complete_input_tensors_bit_identical"] = True
+    result["other_processes_after_inference"] = process_snapshot()
+    result["peak_rss_bytes_macos"] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    result["complete"] = True
+    output.write_text(json.dumps(result, indent=2))
+    print("FINAL", json.dumps(result, indent=2), flush=True)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--data", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--steps", type=int, default=500)
+    args = parser.parse_args()
+    run(args.data, args.output, args.steps)
