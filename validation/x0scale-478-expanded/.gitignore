@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.DS_Store
+raw/
+training_results/*/best_processor.pt
+diffusion_progress_T*.json
+diffusion_results_T*.json
+superseded-*/

@@ -1,0 +1,32 @@
+{
+  "source": "OSI SAF OSI-438 AMSR v3p0 public NetCDF, 25km northern EASE2 grid",
+  "raw_manifest_sha256": "0c9d93c45e89a0cabf5b64b82942ed009f01bd17e2cc9470a5449a060619d2a9",
+  "prepared_sha256": "949a176a64a7e7dece6b8953cbb740fcaf38900bd58a57efe6aa6dc1961dd9b1",
+  "observations": {
+    "train": 120,
+    "validation": 31,
+    "test": 29
+  },
+  "pairs": {
+    "train": 119,
+    "validation": 30,
+    "test": 28
+  },
+  "years_disjoint": true,
+  "train_cutoff": "2023-04-30",
+  "crop_rows": [
+    232,
+    296
+  ],
+  "crop_cols": [
+    206,
+    270
+  ],
+  "ocean_mask_from_training_only": true,
+  "excluded_status_flag_bit_128": true,
+  "ocean_mask_pixels": 3584,
+  "reference_jan2024_max_abs_error": 5.960464477539063e-08,
+  "normalization": "raw fractional SIC [0,1] with training-only target encoder latent std computed in training script",
+  "license": "OSI SAF CC-BY-4.0",
+  "raw_archive_retained_outside_repository": true
+}
