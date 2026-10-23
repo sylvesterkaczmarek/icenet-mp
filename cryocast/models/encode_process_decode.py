@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from math import isfinite
 from typing import Any, ClassVar
 
 import hydra
@@ -12,6 +13,7 @@ from cryocast.models.processors import BaseProcessor
 from cryocast.types import (
     DataSpace,
     ModelStepOutput,
+    ProcessorOutput,
     RolloutSpace,
     TensorNCHW,
     TensorNTCHW,
@@ -31,7 +33,7 @@ class EncodeProcessDecode(BaseModel):
         "processor",
     }
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         encoders: DictConfig | list[BaseEncoder],
@@ -40,6 +42,7 @@ class EncodeProcessDecode(BaseModel):
         target_variable_indices: list[int],
         mask_dir: str | None = None,
         rollout_space: RolloutSpace | str = RolloutSpace.LATENT,
+        decoded_loss_weight: float = 0.0,
         **kwargs: Any,
     ) -> None:
         """Initialise an EncodeProcessDecode model.
@@ -52,10 +55,22 @@ class EncodeProcessDecode(BaseModel):
             mask_dir: directory containing masks for the decoder (if needed).
             rollout_space: RolloutSpace.LATENT or RolloutSpace.PHYSICAL (or the
                 equivalent string), where to perform the forecast loop.
+            decoded_loss_weight: Nonnegative coefficient for the opt-in decoded
+                loss during latent-loss finetuning. Zero preserves the frozen
+                decoder path. Requires a processor supporting decoded loss.
             **kwargs: forwarded to ``BaseModel`` (spaces, masks, range, skip).
 
         """
+        if (
+            isinstance(decoded_loss_weight, bool)
+            or not isinstance(decoded_loss_weight, (int, float))
+            or not isfinite(decoded_loss_weight)
+            or decoded_loss_weight < 0
+        ):
+            msg = "decoded_loss_weight must be a finite nonnegative number."
+            raise ValueError(msg)
         super().__init__(mask_dir=mask_dir, **kwargs)
+        self.decoded_loss_weight = float(decoded_loss_weight)
 
         # Check that the number of variable indices provided matches the number of
         # channels in the output space.
@@ -199,6 +214,13 @@ class EncodeProcessDecode(BaseModel):
                 f"{type(self.processor).__name__}, which computes its loss in latent "
                 f"space (the decoder is frozen and never trained on that path)."
             )
+            raise ValueError(msg)
+
+        if self.decoded_loss_weight and not (
+            self.processor.computes_loss_in_latent_space
+            and self.processor.supports_decoded_loss
+        ):
+            msg = "decoded_loss_weight requires a processor supporting decoded-output loss."
             raise ValueError(msg)
 
         # Freeze unused modules
@@ -394,13 +416,17 @@ class EncodeProcessDecode(BaseModel):
 
     def _freeze_unused_modules(self) -> None:
         """Freeze unused modules."""
-        # Processors that compute loss in latent space do not touch the decoder, and
+        # Without an auxiliary output loss, latent-loss processors freeze the decoder
+        # and
         # only use the target_encoder if the target dataset is not also an input.
         # Other processors never touch the target_encoder.
         # We therefore explicitly freeze the unused modules.
         latent_loss = self.processor.computes_loss_in_latent_space
         if latent_loss:
-            self.decoder.freeze()
+            if self.decoded_loss_weight:
+                self.decoder.requires_grad_(requires_grad=True)
+            else:
+                self.decoder.freeze()
         if not latent_loss or self.target_input_encoder is not None:
             self.target_encoder.freeze()
 
@@ -435,11 +461,63 @@ class EncodeProcessDecode(BaseModel):
 
     @override
     def train(self, mode: bool = True) -> "EncodeProcessDecode":
-        """Set training mode, with decoder frozen if computing loss in latent space."""
+        """Set training mode while respecting latent/decoded-loss freeze rules."""
         super().train(mode)
         if mode:
             self._freeze_unused_modules()
         return self
+
+    def _decoded_training_loss(
+        self,
+        output: ProcessorOutput,
+        target: TensorNTCHW,
+        anchor: TensorNCHW | None,
+    ) -> tuple[TensorNTCHW, torch.Tensor]:
+        """Decode only trained steps and average confidence-weighted sample losses.
+
+        We use per-sample scalar losses so both lead-time-aware and nonlinear
+        criteria retain their own time/spatial reductions. Confidence weights
+        are averaged over the original batch, not renormalised by their sum.
+        """
+        latent, weights = output.decoded_prediction, output.decoded_loss_weights
+        if latent is None or weights is None:
+            msg = "Processor did not provide decoded-loss estimates and weights."
+            raise ValueError(msg)
+        if (
+            latent.ndim != target.ndim
+            or latent.shape[0] != target.shape[0]
+            or latent.shape[1] not in (1, target.shape[1])
+            or weights.shape != (target.shape[0],)
+            or not torch.isfinite(weights).all()
+            or (weights < 0).any()
+            or (weights > 1).any()
+        ):
+            msg = "Invalid decoded-loss prediction shape or confidence weights."
+            raise ValueError(msg)
+        prediction = self.decoder.rollout(
+            latent, None if anchor is None else anchor.unsqueeze(1)
+        )
+        trained_target = target[:, : prediction.shape[1]]
+        if prediction.shape != trained_target.shape:
+            msg = "Decoded prediction must exactly match the trained target shape."
+            raise ValueError(msg)
+        sample_losses = torch.stack(
+            [
+                self.loss(prediction[i : i + 1], trained_target[i : i + 1])
+                for i in range(target.shape[0])
+            ]
+        )
+        if sample_losses.shape != weights.shape:
+            msg = "Decoded-output loss must return one scalar per sample."
+            raise ValueError(msg)
+        # Accumulate low-precision losses/weights in at least float32.
+        sample_losses = sample_losses.to(
+            dtype=torch.promote_types(sample_losses.dtype, torch.float32)
+        )
+        decoded_loss = (sample_losses * weights.detach().to(sample_losses)).mean()
+        # AR training has only a step-zero estimate, repeated for legacy metrics.
+        metrics_prediction = prediction.detach().expand_as(target)
+        return metrics_prediction, decoded_loss
 
     def training_step(
         self,
@@ -454,8 +532,9 @@ class EncodeProcessDecode(BaseModel):
         Processors that set the flag `computes_loss_in_latent_space=True` are a special
         case. We encode the inputs and target into latent space, call `rollout()` on the
         processor, which returns both a latent prediction and a loss. We pass this
-        prediction through a frozen decoder in order to calculate metrics, but we use
-        the loss returned by the processor for backpropagation.
+        prediction through a frozen decoder for metrics by default. With
+        ``decoded_loss_weight > 0``, the decoder is trainable and contributes a
+        confidence-weighted output loss on the actually trained forecast steps.
 
         Args:
             batch: Dictionary with one NTCHW entry per input dataset (n_history_steps)
@@ -475,8 +554,12 @@ class EncodeProcessDecode(BaseModel):
             target_latent = self._encode_target_latent(batch, target)
 
             # Process in latent space
-            processor_output = self.processor.rollout(
-                latent_input_combined, target_latent
+            processor_output = (
+                self.processor.rollout_with_decoded_loss(
+                    latent_input_combined, target_latent.detach()
+                )
+                if self.decoded_loss_weight
+                else self.processor.rollout(latent_input_combined, target_latent)
             )
 
             # Get the loss from the processor output
@@ -488,14 +571,20 @@ class EncodeProcessDecode(BaseModel):
                 )
                 raise ValueError(msg)
 
-            # Decode under no_grad for metrics/callbacks only.
             # Use persistence as the skip-connection anchor, if required.
+            # Only the opt-in output loss retains a decoder graph.
             anchor = self._extract_anchor(batch[self.output_space.name])
-            with torch.no_grad():
-                prediction = self.decoder.rollout(
-                    processor_output.prediction,
-                    None if anchor is None else anchor.unsqueeze(1),
+            if self.decoded_loss_weight:
+                prediction, decoded_loss = self._decoded_training_loss(
+                    processor_output, target, anchor
                 )
+                loss = loss + self.decoded_loss_weight * decoded_loss
+            else:
+                with torch.no_grad():
+                    prediction = self.decoder.rollout(
+                        processor_output.prediction,
+                        None if anchor is None else anchor.unsqueeze(1),
+                    )
 
         # Standard path: calculate loss by comparing decoded output to target.
         else:

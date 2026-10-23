@@ -35,6 +35,9 @@ class ProcessorStage(EncodeProcessDecode):
         - copy the decoder from DecoderStage and freeze its parameters
         - copy target_variable_indices from checkpoint or from DecoderStage
         """
+        if kwargs.get("decoded_loss_weight", 0.0) != 0.0:
+            msg = "decoded_loss_weight is only supported in the full finetune model."
+            raise ValueError(msg)
         kwargs.setdefault(
             "target_variable_indices", decoder_model.target_variable_indices
         )

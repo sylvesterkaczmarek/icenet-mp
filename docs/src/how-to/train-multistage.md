@@ -26,7 +26,7 @@ The processor is trained with frozen encoders and decoder from stages 1–2.
 
 **Stage 4 - Finetune**
 
-Pretrained weights are loaded into the full `EncodeProcessDecode` model and the entire model is trained end-to-end.
+Pretrained weights are loaded into the full `EncodeProcessDecode` model. Models with a physical-output loss train end-to-end. Latent-loss processors keep the decoder frozen by default; the optional decoded-output loss below enables joint finetuning.
 
 ![Stage 4 diagram](../assets/staged-training-stage4.png)
 
@@ -71,3 +71,49 @@ train:
 Any key valid under `train` can be overridden per stage: `optimizer`, `scheduler`, `trainer`, and `callbacks`.
 Keys not present in a stage block fall back to the top-level `train` values.
 For example, the `lr` for the `encoders`, `decoder` and `processor` stages would be the default `5e-3` if not overridden elsewhere.
+
+
+## Optional decoded-output loss for diffusion finetuning
+
+For `EncodeProcessDecode` with a `DiffusionProcessor`, set a positive
+`model.decoded_loss_weight` to train the decoder alongside the processor and input
+encoders in the final stage. The default is `0.0`, preserving the existing loss,
+frozen decoder and checkpoint parameter layout. No shipped preset enables it.
+
+For example, with your existing diffusion baseline and local data configuration:
+
+```bash
+uv run cryocast train --multistage --config-name my-diffusion.local \
+  +model.decoded_loss_weight=0.1
+```
+
+The coefficient is an experimental choice, not a recommended optimum. It belongs
+under `model`, not `train.multistage.finetune`. The separately constructed
+`ProcessorStage` continues to use a frozen decoder and rejects a nonzero weight.
+The unused target encoder also remains frozen.
+
+The objective is:
+
+```text
+latent_loss + decoded_loss_weight * mean_b(alpha_bar[t_b] * output_loss_b)
+```
+
+Here `alpha_bar[t] = SNR(t) / (1 + SNR(t))` is the bounded signal-to-noise weight
+from the trained diffusion schedule. It suppresses unreliable high-noise
+reconstructions without a singular division at an endpoint. Each sample's output
+loss uses the configured physical loss, including its spatial and lead-time
+reductions; weights are averaged over the whole batch, not normalised by their sum.
+For losses with batch-dependent reductions, this per-sample definition is
+intentional. Masks, range restrictions and skip connections use the existing decoder.
+
+Autoregressive diffusion trains only forecast step zero, so only that step enters
+the auxiliary loss. The repeated estimates used for legacy training metrics are
+not extra supervised forecasts. Parallel diffusion supervises every trained step.
+Validation and inference retain their existing sampling paths.
+
+Old checkpoints without the new option use weight zero. Enabling the option for a
+new finetune run adds decoder parameters to its optimizer: initialise that
+optimizer afresh rather than loading optimizer state from a weight-zero run.
+The existing multistage flow already creates a fresh optimizer for finetuning.
+Matching settings can resume normally. Improved forecasting skill still requires
+matched experiments; gradient and checkpoint tests alone do not establish it.

@@ -81,3 +81,7 @@ class ProcessorOutput:
 
     prediction: TensorNTCHW
     loss: Tensor | None = None
+    # Optional differentiable estimates of the forecast steps actually trained.
+    # Metric predictions may repeat a single trained step across the horizon.
+    decoded_prediction: TensorNTCHW | None = None
+    decoded_loss_weights: Tensor | None = None

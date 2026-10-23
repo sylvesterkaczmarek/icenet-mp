@@ -42,7 +42,7 @@ frame and carried forward unchanged.
 """
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 import torch
 from omegaconf import DictConfig
@@ -70,6 +70,19 @@ class DiffusionProcessor(BaseProcessor):
         - Target-latent slice contains the denoised prediction from reverse diffusion
         - Non-target channels are carried forward from the last observed history frame (persistence in latent)
     """
+
+    supports_decoded_loss: ClassVar[bool] = True
+
+    def rollout_with_decoded_loss(
+        self, x: TensorNTCHW, y: TensorNTCHW
+    ) -> ProcessorOutput:
+        """Keep x_0 differentiable and weight decoded loss by bounded SNR.
+
+        alpha_bar = SNR / (1 + SNR) suppresses high-noise estimates without
+        singular weights at either endpoint. AR training exposes only step zero.
+        This path is opt-in; ordinary rollout and inference are unchanged.
+        """
+        return self._rollout_training(x, y, decoded_loss=True)
 
     def __init__(  # noqa: PLR0913
         self,
@@ -306,7 +319,9 @@ class DiffusionProcessor(BaseProcessor):
             return ProcessorOutput(prediction=self._sample_autoregressive(x))
         return ProcessorOutput(prediction=self._sample_parallel(x))
 
-    def _rollout_training(self, x: TensorNTCHW, y: TensorNTCHW) -> ProcessorOutput:
+    def _rollout_training(
+        self, x: TensorNTCHW, y: TensorNTCHW, *, decoded_loss: bool = False
+    ) -> ProcessorOutput:
         """One training rollout using DDPM v-prediction loss.
 
         During training, the clean target latent is corrupted using the forward
@@ -319,6 +334,8 @@ class DiffusionProcessor(BaseProcessor):
                 (B, n_history_steps, n_latent_channels_total, H, W).
             y (TensorNTCHW): Encoded target latent of shape
                 (B, n_forecast_steps, n_latent_channels_target, H, W).
+            decoded_loss: Return differentiable trained-step predictions and
+                bounded-SNR weights for optional decoded-output finetuning.
 
         Returns:
             ProcessorOutput:
@@ -377,8 +394,9 @@ class DiffusionProcessor(BaseProcessor):
             target_v.unflatten(1, (n_steps, self.c_target)),
         )
 
-        # Reconstruct x0 for metrics only; this is not used for training.
-        with torch.no_grad():
+        # Default estimates remain detached. Opt-in finetuning retains this graph,
+        # but must also respect an enclosing no_grad context.
+        with torch.set_grad_enabled(decoded_loss and torch.is_grad_enabled()):
             # calculate_v() has the same formula as the x_0 reconstruction,
             # so we reuse it by passing pred_v as x_start.
             pred_x0: TensorNCHW = self.diffusion.calculate_v(
@@ -386,6 +404,15 @@ class DiffusionProcessor(BaseProcessor):
             )
             prediction = self._build_metrics_prediction(pred_x0, last_frame)
 
+        if decoded_loss:
+            return ProcessorOutput(
+                prediction=prediction.detach(),
+                loss=loss,
+                decoded_prediction=prediction[:, :n_steps],
+                decoded_loss_weights=self.diffusion.alphas_cumprod.to(device)[
+                    t
+                ].detach(),
+            )
         return ProcessorOutput(prediction=prediction, loss=loss)
 
     def _run_ddim_reverse_diffusion(

@@ -1,5 +1,6 @@
 from collections import deque
 from collections.abc import Iterable
+from typing import ClassVar
 
 from torch import cat, nn, stack
 
@@ -15,6 +16,15 @@ class BaseProcessor(nn.Module):
     Output space:
         TensorNTCHW with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
     """
+
+    supports_decoded_loss: ClassVar[bool] = False
+
+    def rollout_with_decoded_loss(
+        self, x: TensorNTCHW, y: TensorNTCHW
+    ) -> ProcessorOutput:
+        """Return trained-step estimates and per-sample confidence for decoded loss."""
+        msg = f"{type(self).__name__} does not support decoded-output loss."
+        raise NotImplementedError(msg)
 
     def __init__(
         self,
