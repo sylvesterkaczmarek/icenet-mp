@@ -460,3 +460,54 @@ class _OneBatch(Dataset[dict[str, torch.Tensor]]):
         if index != 0:
             raise IndexError(index)
         return make_batch()
+
+
+@pytest.mark.parametrize("autoregressive", [True, False])
+@pytest.mark.parametrize("loss_name", ["huber", "amse", "lead-weighted"])
+def test_real_physical_loss_variants(loss_name: str, *, autoregressive: bool) -> None:
+    """The configured physical criterion must keep finite gradients in both modes."""
+    model = make_model(0.3, autoregressive=autoregressive)
+    configs = {
+        "huber": {"_target_": "torch.nn.HuberLoss", "delta": 0.5},
+        "amse": {"_target_": "cryocast.losses.amse_loss.AMSELoss"},
+        "lead-weighted": {
+            "_target_": "torch.nn.MSELoss",
+            "lead_time_exponent": 2.0,
+        },
+    }
+    model.loss_cfg = DictConfig(configs[loss_name])
+    output = model.training_step(make_batch(), 0)
+    assert output.loss is not None
+    assert torch.isfinite(output.loss)
+    output.loss.backward()
+    for module in [*model.encoders, model.processor, model.decoder]:
+        grads = [p.grad for p in module.parameters() if p.requires_grad]
+        assert grads
+        assert all(g is not None and torch.isfinite(g).all() for g in grads)
+        assert any(g is not None and g.abs().sum() > 0 for g in grads)
+
+
+def test_rejects_nonscalar_physical_loss() -> None:
+    """Reject reduction='none' rather than broadcasting per-pixel confidence."""
+    model = make_model(0.2)
+    model.loss_cfg = DictConfig({"_target_": "torch.nn.MSELoss", "reduction": "none"})
+    with pytest.raises(ValueError, match="one scalar per sample"):
+        model.training_step(make_batch(), 0)
+
+
+def test_zero_confidence_has_zero_auxiliary_gradient() -> None:
+    """A zero confidence weight excludes a sample without renormalising other weights."""
+    model = make_model(0.2)
+    latent = torch.randn(2, 1, 3, 16, 16, requires_grad=True)
+    raw = ProcessorOutput(
+        prediction=latent.detach(),
+        decoded_prediction=latent,
+        decoded_loss_weights=torch.tensor([0.0, 0.5], requires_grad=True),
+    )
+    _, loss = model._decoded_training_loss(raw, make_batch()["target"], None)
+    loss.backward()
+    assert latent.grad is not None
+    assert torch.count_nonzero(latent.grad[0]) == 0
+    assert torch.count_nonzero(latent.grad[1]) > 0
+    assert raw.decoded_loss_weights is not None
+    assert raw.decoded_loss_weights.grad is None

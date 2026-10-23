@@ -416,9 +416,8 @@ class EncodeProcessDecode(BaseModel):
 
     def _freeze_unused_modules(self) -> None:
         """Freeze unused modules."""
-        # Without an auxiliary output loss, latent-loss processors freeze the decoder
-        # and
-        # only use the target_encoder if the target dataset is not also an input.
+        # Without an auxiliary output loss, latent-loss processors freeze the decoder.
+        # They use the target_encoder only if the target dataset is not an input.
         # Other processors never touch the target_encoder.
         # We therefore explicitly freeze the unused modules.
         latent_loss = self.processor.computes_loss_in_latent_space
